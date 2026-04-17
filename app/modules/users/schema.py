@@ -1,0 +1,42 @@
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class UserBase(BaseModel):
+    google_id: str = Field(max_length=255)
+    email: str = Field(max_length=320)
+    name: str = Field(max_length=255)
+    picture: str | None = Field(default=None, max_length=2048)
+    id_number: str | None = Field(default=None, max_length=255)
+    role_id: int | None = None
+    flags: Any | None = None
+    is_active: int = 0
+    last_logged_in: datetime | None = None
+
+
+class UserCreate(UserBase):
+    pass
+
+
+class UserUpdate(BaseModel):
+    google_id: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=320)
+    name: str | None = Field(default=None, max_length=255)
+    picture: str | None = Field(default=None, max_length=2048)
+    id_number: str | None = Field(default=None, max_length=255)
+    role_id: int | None = None
+    flags: Any | None = None
+    is_active: int | None = None
+    last_logged_in: datetime | None = None
+    deleted_at: datetime | None = None
+
+
+class UserRead(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    deleted_at: datetime | None
