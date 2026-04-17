@@ -4,15 +4,19 @@ x-api-environment: &api-environment
   APP_NAME: ${APP_NAME:-FastAPI PostgreSQL CRUD}
   ENVIRONMENT: ${ENVIRONMENT:-development}
   DEBUG: ${DEBUG:-false}
+  API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
   JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me}
   JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
   ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
   REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
 
 services:
   database:
     image: postgres:16
-    container_name: postgres-database
+    container_name: backend-postgres-database
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -20,18 +24,18 @@ services:
     ports:
       - "${POSTGRES_PUBLISH_PORT}:5432"
     volumes:
-      - fastapi_pgdata:/var/lib/postgresql/data
+      - fastapi_postgresql_pgdata:/var/lib/postgresql/data
   redis:
     image: redis:7-alpine
-    container_name: app-redis
+    container_name: backend-fastapi-postgresql-redis
     ports:
       - "${REDIS_PUBLISH_PORT}:6379"
     volumes:
-      - fastapi_redisdata:/data
+      - fastapi_postgresql_redisdata:/data
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
   api:
     build: .
-    container_name: backend-api
+    container_name: backend-fastapi-postgresql-api
     ports:
       - "${API_PUBLISH_PORT}:8000"
     environment:
@@ -45,7 +49,7 @@ services:
   migrate:
     profiles: ["migrate"]
     build: .
-    container_name: backend-migrate
+    container_name: backend-fastapi-postgresql-migrate
     environment:
       <<: *api-environment
     # python -m alembic works even when the alembic console script is missing from PATH
@@ -54,5 +58,5 @@ services:
       - database
 
 volumes:
-  fastapi_pgdata:
-  fastapi_redisdata:
+  fastapi_postgresql_pgdata:
+  fastapi_postgresql_redisdata:
