@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.modules.items import services
+from app.modules.items import service
 from app.modules.items.schema import ItemCreate, ItemRead, ItemUpdate
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -14,26 +14,26 @@ def list_items(
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list[ItemRead]:
-    return services.list_items(db, skip=skip, limit=limit)
+    return service.list_items(db, skip=skip, limit=limit)
 
 
 @router.get("/{item_id}", response_model=ItemRead)
 def get_item(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
-    return services.get_item(db, item_id)
+    return service.get_item(db, item_id)
 
 
 @router.post("", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
 def create_item(obj: ItemCreate, db: Session = Depends(get_db)) -> ItemRead:
-    return services.create_item(db, obj)
+    return service.create_item(db, obj)
 
 
 @router.patch("/{item_id}", response_model=ItemRead)
 def update_item(
     item_id: int, obj: ItemUpdate, db: Session = Depends(get_db)
 ) -> ItemRead:
-    return services.update_item(db, item_id, obj)
+    return service.update_item(db, item_id, obj)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(item_id: int, db: Session = Depends(get_db)) -> None:
-    services.delete_item(db, item_id)
+    service.delete_item(db, item_id)

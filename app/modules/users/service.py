@@ -1,8 +1,46 @@
+from datetime import UTC, datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.modules.users import repository
-from app.modules.users.schema import UserCreate, UserRead, UserUpdate
+from app.modules.users.schema import (
+    UserCreate,
+    UserGoogleInfo,
+    UserPublic,
+    UserRead,
+    UserUpdate,
+)
+
+
+def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserPublic:
+    """On Google login: update profile + last_logged_in if known; otherwise insert."""
+    now = datetime.now(UTC)
+    existing = repository.get_user_by_google_id(db, data.google_id)
+    if existing is not None:
+        updated = repository.update_user(
+            db,
+            existing,
+            UserUpdate(
+                email=data.email,
+                name=data.name,
+                picture=data.picture,
+                last_logged_in=now,
+            ),
+        )
+        return UserPublic.model_validate(updated)
+
+    created = repository.create_user(
+        db,
+        UserCreate(
+            google_id=data.google_id,
+            email=data.email,
+            name=data.name,
+            picture=data.picture,
+            last_logged_in=now,
+        ),
+    )
+    return UserPublic.model_validate(created)
 
 
 def list_users(db: Session, *, skip: int = 0, limit: int = 100) -> list[UserRead]:

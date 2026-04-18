@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     google_client_secret: str  # from env GOOGLE_CLIENT_SECRET
     # Must match an authorized redirect URI in Google Cloud Console (used in token exchange).
     google_redirect_uri: str | None = None  # from env GOOGLE_REDIRECT_URI
+    # After Google OAuth, the API redirects the browser here with `#access_token=<jwt>`.
+    frontend_oauth_success_url: str = "http://localhost:5173/auth/callback"  # from env FRONTEND_OAUTH_SUCCESS_URL
 
 
 # Env / .env supply fields; pyright cannot see that at call time.

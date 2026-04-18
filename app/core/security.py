@@ -15,8 +15,8 @@ import jwt
 
 
 def create_access_token(
-    subject: str | int,
-    *,
+    user: dict,
+    permissions: list[dict] = [],
     extra_claims: dict[str, Any] | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
@@ -27,7 +27,8 @@ def create_access_token(
         expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
     expire = now + expires_delta
     payload: dict[str, Any] = {
-        "sub": str(subject),
+        "user": user,
+        "permissions": permissions,
         "exp": expire,
         "iat": now,
     }

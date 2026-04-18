@@ -23,6 +23,7 @@ def create_user(db: Session, obj: UserCreate) -> User:
     db_user = User(
         google_id=obj.google_id,
         email=obj.email,
+        password="",
         name=obj.name,
         picture=obj.picture,
         id_number=obj.id_number,
