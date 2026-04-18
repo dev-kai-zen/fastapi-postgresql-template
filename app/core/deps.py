@@ -1,14 +1,3 @@
-"""
-Protected-route auth dependency.
-
-Flow (browser SPA): access JWT in ``Authorization: Bearer``; refresh JWT in HttpOnly cookie.
-1. If access is valid → return its payload.
-2. If access is **expired** → require refresh cookie; verify refresh (signature, ``exp``, revoke list);
-   if valid → mint new access JWT, set ``X-New-Access-Token`` on the response, return new payload.
-3. If access is invalid (not just expired), or refresh missing/invalid/expired → **401** (client
-   should clear local storage and send the user to login).
-"""
-
 import jwt
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
