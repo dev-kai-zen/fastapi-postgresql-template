@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.modules.users import service as users_service
-from app.modules.users.schema import UserGoogleInfo, UserPublic
+from app.modules.users.schema import UserGoogleInfo, UserPublic, UserRead
 
 
 class UsersClient:
@@ -9,3 +9,6 @@ class UsersClient:
 
     def upsert_google_identity(self, db: Session, data: UserGoogleInfo) -> UserPublic:
         return users_service.upsert_google_identity(db, data)
+
+    def get_user(self, db: Session, user_id: int) -> UserRead:
+        return users_service.get_user(db, user_id)

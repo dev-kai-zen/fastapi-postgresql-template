@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
 
 from app.core.config import get_settings
+from app.core.deps import require_access_token_payload
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import cast
+from typing import Any, cast
 from app.core.db import get_db
 import redis
 from typing import Callable
@@ -35,3 +36,11 @@ def redis_ping(r: redis.Redis = Depends(get_redis)):
     # Yes, even when using a shared pool, you use the dependency the same way.
     pong = cast(Callable[[], bool], r.ping)()
     return {"ok": True, "ping": pong}
+
+
+@router.get("/app-testing/token-check")
+def token_check(
+    payload: dict = Depends(require_access_token_payload),
+) -> dict[str, Any]:
+    """Requires a valid access JWT (Authorization: Bearer). For manual / UI testing."""
+    return {"valid": True, "user": payload.get("user")}

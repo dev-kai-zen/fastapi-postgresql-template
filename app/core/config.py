@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     google_redirect_uri: str | None = None  # from env GOOGLE_REDIRECT_URI
     # After Google OAuth, the API redirects the browser here with `#access_token=<jwt>`.
     frontend_oauth_success_url: str = "http://localhost:5173/auth/callback"  # from env FRONTEND_OAUTH_SUCCESS_URL
+    # Comma-separated browser origins allowed for credentialed CORS (e.g. `http://localhost:5173`).
+    # If empty, the origin of `frontend_oauth_success_url` is used.
+    cors_allow_origins: str = ""  # from env CORS_ALLOW_ORIGINS
 
 
 # Env / .env supply fields; pyright cannot see that at call time.

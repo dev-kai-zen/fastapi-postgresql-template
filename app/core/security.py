@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from fastapi import HTTPException, status
+
 from app.core.config import Settings, get_settings
 
 from contextlib import contextmanager
@@ -105,7 +107,11 @@ def create_refresh_token(
     extra_claims: dict[str, Any] | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Return a signed refresh JWT (`token_use=refresh`, unique `jti`)."""
+    """Return a signed refresh JWT (`token_use=refresh`, unique `jti`).
+
+    For stateless refresh→access rotation, pass `extra_claims={"user": {...}}` with the
+    same `user` object you put in access tokens so `refresh_access_token()` needs no DB.
+    """
     settings: Settings = get_settings()
     now = datetime.now(UTC)
     if expires_delta is None:
@@ -133,6 +139,32 @@ def verify_refresh_token(token: str) -> dict[str, Any]:
         if r.get(f"{_REFRESH_REVOKE_PREFIX}{jti}"):
             raise jwt.InvalidTokenError("Refresh token has been revoked")
     return payload
+
+
+_REFRESH_TOKEN_USER_CLAIM = "user"
+
+
+def refresh_access_token(refresh_token: str) -> str:
+    """
+    Mint a new access JWT from a valid refresh JWT only (no DB / users module).
+
+    The refresh token must include a `user` claim (same shape as in the access token),
+    embedded when the refresh was created. Old refresh tokens without `user` are rejected.
+    """
+    try:
+        payload = verify_refresh_token(refresh_token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        ) from exc
+    user = payload.get(_REFRESH_TOKEN_USER_CLAIM)
+    if not isinstance(user, dict):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token; sign in again",
+        )
+    return create_access_token(user)
 
 
 def revoke_refresh_token(token: str) -> None:
