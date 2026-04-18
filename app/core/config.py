@@ -38,10 +38,14 @@ class Settings(BaseSettings):
 
     # Redis-backed per-IP limits on routes under `api_v1_prefix` (see `RateLimitMiddleware`).
     # Defaults apply when env vars are omitted (e.g. Docker compose without these keys).
-    rate_limit_enabled: bool  # from env RATE_LIMIT_ENABLED
-    rate_limit_window_seconds: int  # from env RATE_LIMIT_WINDOW_SECONDS
-    rate_limit_auth_per_minute: int  # from env RATE_LIMIT_AUTH_PER_MINUTE
-    rate_limit_api_per_minute: int  # from env RATE_LIMIT_API_PER_MINUTE
+    rate_limit_enabled: bool = True  # from env RATE_LIMIT_ENABLED
+    rate_limit_window_seconds: int = 60  # from env RATE_LIMIT_WINDOW_SECONDS
+    rate_limit_auth_per_minute: int = 40  # from env RATE_LIMIT_AUTH_PER_MINUTE
+    rate_limit_api_per_minute: int = 200  # from env RATE_LIMIT_API_PER_MINUTE
+
+    # Dev/test only: shared secret for `/app-testing/generate-token` (see app_testing routes).
+    app_testing_admin_code: str = "api-test"  # from env APP_TESTING_ADMIN_CODE; empty = route disabled
+    app_testing_token_expire_minutes: int = 30  # from env APP_TESTING_TOKEN_EXPIRE_MINUTES
 
 
 # Env / .env supply fields; pyright cannot see that at call time.
