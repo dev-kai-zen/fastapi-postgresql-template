@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.modules.users import service
 from app.modules.users.schema import UserCreate, UserRead, UserUpdate
+from app.core.deps import require_access_token_payload
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(
+    prefix="/users", tags=["users"], dependencies=[Depends(require_access_token_payload)])
 
 
 @router.get("", response_model=list[UserRead])
@@ -37,5 +39,3 @@ def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_user(db, user_id)
-
-    

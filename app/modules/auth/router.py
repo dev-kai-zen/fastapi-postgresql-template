@@ -47,17 +47,17 @@ def _google_login_redirect() -> RedirectResponse:
     return RedirectResponse(service.get_google_login_redirect_url())
 
 
-@router.get("/google/login")
+@router.get("/google/login", include_in_schema=False)
 async def google_login_get():
     return _google_login_redirect()
 
 
-@router.post("/google/login")
+@router.post("/google/login", include_in_schema=False)
 async def google_login_post():
     return _google_login_redirect()
 
 
-@router.get("/google/callback")
+@router.get("/google/callback", include_in_schema=False)
 async def google_callback(
     code: str = Query(...),
     db: Session = Depends(get_db),
@@ -68,7 +68,7 @@ async def google_callback(
     return response
 
 
-@router.post("/retry-login", response_model=AccessTokenResponse)
+@router.post("/retry-login", response_model=AccessTokenResponse, include_in_schema=False)
 async def retry_login(
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ):
@@ -81,7 +81,7 @@ async def retry_login(
     return AccessTokenResponse(access_token=access)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
 def logout(
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ) -> Response:

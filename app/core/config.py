@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     app_name: str  # from env APP_NAME
     environment: str = "development"  # from env ENVIRONMENT
     debug: bool = False  # from env DEBUG
+    # When ENVIRONMENT is production/prod, OpenAPI routes are off unless this is true (internal/staging only).
+    openapi_docs_in_production: bool = False  # from env OPENAPI_DOCS_IN_PRODUCTION
 
     api_v1_prefix: str  # from env API_V1_PREFIX
 
