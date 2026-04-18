@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import Settings
 from app.core.constants import NEW_ACCESS_TOKEN_HEADER
+from app.core.rate_limit import RateLimitMiddleware
 
 
 def _cors_allow_origins(settings: Settings) -> list[str]:
@@ -29,3 +30,4 @@ def register_middleware(app: FastAPI, settings: Settings) -> None:
             allow_headers=["*"],
             expose_headers=[NEW_ACCESS_TOKEN_HEADER],
         )
+    app.add_middleware(RateLimitMiddleware, settings=settings)

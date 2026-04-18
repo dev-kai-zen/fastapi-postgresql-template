@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # If empty, the origin of `frontend_oauth_success_url` is used.
     cors_allow_origins: str = ""  # from env CORS_ALLOW_ORIGINS
 
+    # Redis-backed per-IP limits on routes under `api_v1_prefix` (see `RateLimitMiddleware`).
+    rate_limit_enabled: bool = True  # from env RATE_LIMIT_ENABLED
+    rate_limit_window_seconds: int = 60  # from env RATE_LIMIT_WINDOW_SECONDS
+    rate_limit_auth_per_minute: int = 40  # from env RATE_LIMIT_AUTH_PER_MINUTE
+    rate_limit_api_per_minute: int = 200  # from env RATE_LIMIT_API_PER_MINUTE
+
 
 # Env / .env supply fields; pyright cannot see that at call time.
 def get_settings() -> Settings:
