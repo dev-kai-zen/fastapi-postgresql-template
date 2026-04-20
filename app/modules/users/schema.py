@@ -1,7 +1,22 @@
 from datetime import datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+
+class UserListSortBy(StrEnum):
+    """Allowed `sort_by` values for list users (must match repository mapping)."""
+    ID = "id"
+    NAME = "name"
+    EMAIL = "email"
+    CREATED_AT = "created_at"
+    IS_ACTIVE = "is_active"
+
+
+class UserListSortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
 
 
 class UserGoogleInfo(BaseModel):
@@ -59,7 +74,6 @@ class UserPublic(BaseModel):
     last_logged_in: datetime | None
     created_at: datetime
     updated_at: datetime
-    deleted_at: datetime | None
 
 
 class UserUpdate(BaseModel):
@@ -72,7 +86,6 @@ class UserUpdate(BaseModel):
     flags: Any | None = None
     is_active: int | None = None
     last_logged_in: datetime | None = None
-    deleted_at: datetime | None = None
 
 
 class UserRead(UserBase):
@@ -81,4 +94,7 @@ class UserRead(UserBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    deleted_at: datetime | None
+
+class UserListResponse(BaseModel):
+    data: list[UserRead]
+    total: int

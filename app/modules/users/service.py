@@ -7,9 +7,12 @@ from app.modules.users import repository
 from app.modules.users.schema import (
     UserCreate,
     UserGoogleInfo,
+    UserListSortBy,
+    UserListSortOrder,
     UserPublic,
     UserRead,
     UserUpdate,
+    UserListResponse,
 )
 
 
@@ -43,39 +46,64 @@ def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserPublic:
     return UserPublic.model_validate(created)
 
 
-def list_users(db: Session, *, skip: int = 0, limit: int = 100) -> list[UserRead]:
-    users = repository.get_users(db, skip=skip, limit=limit)
-    return [UserRead.model_validate(u) for u in users]
+def list_users(
+    db: Session,
+    *,
+    skip: int = 0,
+    limit: int = 100,
+    search: str | None = None,
+    sort_by: UserListSortBy = UserListSortBy.ID,
+    sort_order: UserListSortOrder = UserListSortOrder.ASC,
+) -> UserListResponse:
+    total = repository.count_users(db, search=search)
+    rows = repository.get_users(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+        sort_by=sort_by.value,
+        sort_order=sort_order.value,
+    )
+    return UserListResponse(
+        data=[UserRead.model_validate(row) for row in rows],
+        total=total,
+    )
+
 
 
 def get_user(db: Session, user_id: int) -> UserRead:
-    db_user = repository.get_user(db, user_id)
-    if db_user is None:
+    persisted_user = repository.get_user(db, user_id)
+    if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    return UserRead.model_validate(db_user)
+    return UserRead.model_validate(persisted_user)
+
+def get_users_by_ids(db: Session, ids: list[int]) -> list[UserRead]:
+    persisted_users = repository.get_users_by_ids(db, ids)
+    return [UserRead.model_validate(user) for user in persisted_users]
 
 
-def create_user(db: Session, obj: UserCreate) -> UserRead:
-    db_user = repository.create_user(db, obj)
-    return UserRead.model_validate(db_user)
+
+def create_user(db: Session, create_data: UserCreate) -> UserRead:
+    persisted_user = repository.create_user(db, create_data)
+    return UserRead.model_validate(persisted_user)
 
 
-def update_user(db: Session, user_id: int, obj: UserUpdate) -> UserRead:
-    db_user = repository.get_user(db, user_id)
-    if db_user is None:
+def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
+    persisted_user = repository.get_user(db, user_id)
+    if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    db_user = repository.update_user(db, db_user, obj)
-    return UserRead.model_validate(db_user)
+    persisted_user = repository.update_user(db, persisted_user, update_data)
+    return UserRead.model_validate(persisted_user)
 
 
 def delete_user(db: Session, user_id: int) -> None:
-    db_user = repository.get_user(db, user_id)
-    if db_user is None:
+    persisted_user = repository.get_user(db, user_id)
+    if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    repository.delete_user(db, db_user)
+    repository.delete_user(db, persisted_user)

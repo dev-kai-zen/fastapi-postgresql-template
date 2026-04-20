@@ -7,7 +7,9 @@ from app.modules.users.schema import UserGoogleInfo, UserPublic, UserRead
 class UsersClient:
     """Calls the users module service boundary (local today; HTTP client later)."""
 
-    def upsert_google_identity(self, db: Session, data: UserGoogleInfo) -> UserPublic:
+    def upsert_google_identity(
+        self, db: Session, data: UserGoogleInfo
+    ) -> UserPublic:
         return users_service.upsert_google_identity(db, data)
 
     def get_user(self, db: Session, user_id: int) -> UserRead:

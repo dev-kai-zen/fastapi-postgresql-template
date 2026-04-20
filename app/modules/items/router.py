@@ -23,15 +23,15 @@ def get_item(item_id: int, db: Session = Depends(get_db)) -> ItemRead:
 
 
 @router.post("", response_model=ItemRead, status_code=status.HTTP_201_CREATED)
-def create_item(obj: ItemCreate, db: Session = Depends(get_db)) -> ItemRead:
-    return service.create_item(db, obj)
+def create_item(create_data: ItemCreate, db: Session = Depends(get_db)) -> ItemRead:
+    return service.create_item(db, create_data)
 
 
 @router.patch("/{item_id}", response_model=ItemRead)
 def update_item(
-    item_id: int, obj: ItemUpdate, db: Session = Depends(get_db)
+    item_id: int, update_data: ItemUpdate, db: Session = Depends(get_db)
 ) -> ItemRead:
-    return service.update_item(db, item_id, obj)
+    return service.update_item(db, item_id, update_data)
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -3,20 +3,39 @@ from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.modules.users import service
-from app.modules.users.schema import UserCreate, UserRead, UserUpdate
+from app.modules.users.schema import (
+    UserCreate,
+    UserListSortBy,
+    UserListSortOrder,
+    UserRead,
+    UserUpdate,
+    UserListResponse,
+)
+
 from app.core.deps import require_access_token_payload
 
 router = APIRouter(
     prefix="/users", tags=["users"], dependencies=[Depends(require_access_token_payload)])
 
 
-@router.get("", response_model=list[UserRead])
+@router.get("", response_model=UserListResponse)
 def list_users(
     skip: int = 0,
     limit: int = 100,
+    search: str | None = None,
+    sort_by: UserListSortBy = UserListSortBy.ID,
+    sort_order: UserListSortOrder = UserListSortOrder.ASC,
     db: Session = Depends(get_db),
-) -> list[UserRead]:
-    return service.list_users(db, skip=skip, limit=limit)
+) -> UserListResponse:
+    users = service.list_users(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    return users
 
 
 @router.get("/{user_id}", response_model=UserRead)
@@ -24,16 +43,21 @@ def get_user(user_id: int, db: Session = Depends(get_db)) -> UserRead:
     return service.get_user(db, user_id)
 
 
+@router.get("/get-by-ids", response_model=list[UserRead])
+def get_users_by_ids(ids: list[int], db: Session = Depends(get_db)) -> list[UserRead]:
+    return service.get_users_by_ids(db, ids)
+
+
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def create_user(obj: UserCreate, db: Session = Depends(get_db)) -> UserRead:
-    return service.create_user(db, obj)
+def create_user(create_data: UserCreate, db: Session = Depends(get_db)) -> UserRead:
+    return service.create_user(db, create_data)
 
 
 @router.patch("/{user_id}", response_model=UserRead)
 def update_user(
-    user_id: int, obj: UserUpdate, db: Session = Depends(get_db)
+    user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)
 ) -> UserRead:
-    return service.update_user(db, user_id, obj)
+    return service.update_user(db, user_id, update_data)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
