@@ -10,6 +10,15 @@ from app.modules.rbac.role_permissions.schema import (
 )
 
 
+def list_permission_dicts_for_role(
+    db: Session, role_id: int | None
+) -> list[dict]:
+    """JWT-friendly permission dicts for a role; empty if no role."""
+    if role_id is None:
+        return []
+    return repository.list_permission_dicts_for_role(db, role_id)
+
+
 def list_rbac_role_permissions(
     db: Session, *, skip: int = 0, limit: int = 100
 ) -> list[RbacRolePermissionRead]:

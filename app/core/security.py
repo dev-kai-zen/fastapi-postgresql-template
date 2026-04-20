@@ -164,7 +164,14 @@ def refresh_access_token(refresh_token: str) -> str:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token; sign in again",
         )
-    return create_access_token(user)
+    permissions_raw = payload.get("permissions")
+    if permissions_raw is None:
+        permissions: list[dict] = []
+    elif isinstance(permissions_raw, list):
+        permissions = [p for p in permissions_raw if isinstance(p, dict)]
+    else:
+        permissions = []
+    return create_access_token(user, permissions=permissions)
 
 
 def revoke_refresh_token(token: str) -> None:

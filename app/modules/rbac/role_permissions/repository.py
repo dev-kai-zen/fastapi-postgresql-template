@@ -2,11 +2,29 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.timezone import now_app
+from app.modules.rbac.permissions.model import RbacPermission
 from app.modules.rbac.role_permissions.model import RbacRolePermissions
 from app.modules.rbac.role_permissions.schema import (
     RbacRolePermissionCreate,
     RbacRolePermissionUpdate,
 )
+
+
+def list_permission_dicts_for_role(db: Session, role_id: int) -> list[dict]:
+    """Permissions linked to a role (same-module join). Used by auth / other modules via service."""
+    select_statement = (
+        select(RbacPermission)
+        .join(
+            RbacRolePermissions,
+            RbacRolePermissions.permission_id == RbacPermission.id,
+        )
+        .where(RbacRolePermissions.role_id == role_id)
+        .order_by(RbacPermission.id.asc())
+    )
+    rows = list(db.scalars(select_statement).all())
+    return [
+        {"id": p.id, "name": p.name, "description": p.description} for p in rows
+    ]
 
 
 def list_rbac_role_permissions(

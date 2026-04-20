@@ -3,45 +3,79 @@ from dataclasses import dataclass
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.db import SessionLocal
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    refresh_access_token,
+    revoke_refresh_token,
 )
-from app.modules.auth.google_oauth_client import GoogleOAuthClient, OAuthClientError
+from app.modules.auth.oauth_client import GoogleOAuthClient, OAuthClientError
+from app.modules.auth.rbac_client import RbacClient
+from app.modules.auth.schema import UserInfoResponse
 from app.modules.auth.users_client import UsersClient
-from app.modules.users.schema import UserGoogleInfo
 
-_google_oauth_client = GoogleOAuthClient()
+_oauth_client = GoogleOAuthClient()
 _users_client = UsersClient()
+_rbac_client = RbacClient()
 
 
 @dataclass(frozen=True)
 class GoogleOAuthCompleteResult:
-    redirect_url: str
+    access_token: str
     refresh_token: str
 
 
 def get_google_login_redirect_url() -> str:
-    return _google_oauth_client.build_authorization_url()
+    return _oauth_client.build_authorization_url()
 
 
-async def complete_google_oauth(db: Session, code: str) -> GoogleOAuthCompleteResult:
+async def complete_google_oauth(code: str) -> GoogleOAuthCompleteResult:
     try:
-        tokens = await _google_oauth_client.exchange_code_for_tokens(code)
-        raw_profile = await _google_oauth_client.get_user_info(
-            tokens["access_token"]
-        )
+        tokens = await _oauth_client.exchange_code_for_tokens(code)
+        raw_profile = await _oauth_client.get_user_info(tokens["access_token"])
     except OAuthClientError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
-    google_user = UserGoogleInfo.model_validate(raw_profile)
-    user_public = _users_client.upsert_google_identity(db, google_user)
-    user_claims = user_public.model_dump(mode="json")
-    access = create_access_token(user_claims)
-    refresh = create_refresh_token(
-        user_public.id,
-        extra_claims={"user": user_claims},
+
+    db: Session = SessionLocal()
+    try:
+        user = _users_client.upsert_google_identity(db, raw_profile)
+        permissions = _rbac_client.list_permissions_for_role(db, user.role_id)
+        access = create_access_token(user.user_claims, permissions=permissions)
+        refresh = create_refresh_token(
+            user.id,
+            extra_claims={"user": user.user_claims, "permissions": permissions},
+        )
+        return GoogleOAuthCompleteResult(
+            access_token=access,
+            refresh_token=refresh,
+        )
+    finally:
+        db.close()
+
+
+def refresh_access_from_cookie(refresh_token: str | None) -> str:
+    """Mint a new access token from the refresh cookie; raises HTTPException if missing/invalid."""
+    if refresh_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing refresh token",
+        )
+    return refresh_access_token(refresh_token)
+
+
+def logout_revoking_refresh_token(refresh_token: str | None) -> None:
+    """Best-effort revoke refresh JWT (Redis); ignores errors so logout always clears cookie."""
+    if not refresh_token:
+        return
+    try:
+        revoke_refresh_token(refresh_token)
+    except Exception:
+        pass
+
+
+def get_user_info() -> UserInfoResponse:
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Not implemented",
     )
-    settings = get_settings()
-    redirect_url = f"{settings.frontend_oauth_success_url}#access_token={access}"
-    return GoogleOAuthCompleteResult(redirect_url=redirect_url, refresh_token=refresh)
