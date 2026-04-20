@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -21,7 +21,7 @@ router = APIRouter(
 @router.get("", response_model=UserListResponse)
 def list_users(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = Query(default=10, ge=1, le=100),
     search: str | None = None,
     sort_by: UserListSortBy = UserListSortBy.ID,
     sort_order: UserListSortOrder = UserListSortOrder.ASC,
@@ -39,8 +39,8 @@ def list_users(
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)) -> UserRead:
-    return service.get_user(db, user_id)
+def get_user_by_id(user_id: int, db: Session = Depends(get_db)) -> UserRead:
+    return service.get_user_by_id(db, user_id)
 
 
 @router.get("/get-by-ids", response_model=list[UserRead])

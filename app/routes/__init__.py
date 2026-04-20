@@ -5,7 +5,6 @@ from app.modules.auth.router import router as auth_router
 from app.modules.items.router import router as items_router
 from app.modules.users.router import router as users_router
 
-
 def register_v1_routes() -> APIRouter:
     router = APIRouter()
     router.include_router(routes_test_router)

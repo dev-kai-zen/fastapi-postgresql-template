@@ -71,8 +71,8 @@ def list_users(
 
 
 
-def get_user(db: Session, user_id: int) -> UserRead:
-    persisted_user = repository.get_user(db, user_id)
+def get_user_by_id(db: Session, user_id: int) -> UserRead:
+    persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -91,7 +91,7 @@ def create_user(db: Session, create_data: UserCreate) -> UserRead:
 
 
 def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
-    persisted_user = repository.get_user(db, user_id)
+    persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -101,7 +101,7 @@ def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
 
 
 def delete_user(db: Session, user_id: int) -> None:
-    persisted_user = repository.get_user(db, user_id)
+    persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
