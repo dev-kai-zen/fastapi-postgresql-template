@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.users import repository
@@ -86,7 +87,14 @@ def get_users_by_ids(db: Session, ids: list[int]) -> list[UserRead]:
 
 
 def create_user(db: Session, create_data: UserCreate) -> UserRead:
-    persisted_user = repository.create_user(db, create_data)
+    try:
+        persisted_user = repository.create_user(db, create_data)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User conflicts with existing email, google_id, or id_number",
+        ) from None
     return UserRead.model_validate(persisted_user)
 
 
@@ -96,7 +104,14 @@ def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    persisted_user = repository.update_user(db, persisted_user, update_data)
+    try:
+        persisted_user = repository.update_user(db, persisted_user, update_data)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User conflicts with existing email, google_id, or id_number",
+        ) from None
     return UserRead.model_validate(persisted_user)
 
 

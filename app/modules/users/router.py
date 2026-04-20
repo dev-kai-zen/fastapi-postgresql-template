@@ -20,7 +20,7 @@ router = APIRouter(
 
 @router.get("", response_model=UserListResponse)
 def list_users(
-    skip: int = 0,
+    skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=100),
     search: str | None = None,
     sort_by: UserListSortBy = UserListSortBy.ID,
@@ -38,14 +38,14 @@ def list_users(
     return users
 
 
-@router.get("/{user_id}", response_model=UserRead)
-def get_user_by_id(user_id: int, db: Session = Depends(get_db)) -> UserRead:
-    return service.get_user_by_id(db, user_id)
-
-
 @router.get("/get-by-ids", response_model=list[UserRead])
 def get_users_by_ids(ids: list[int], db: Session = Depends(get_db)) -> list[UserRead]:
     return service.get_users_by_ids(db, ids)
+
+
+@router.get("/{user_id}", response_model=UserRead)
+def get_user_by_id(user_id: int, db: Session = Depends(get_db)) -> UserRead:
+    return service.get_user_by_id(db, user_id)
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
