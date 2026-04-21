@@ -39,12 +39,15 @@ async def complete_google_oauth(code: str) -> GoogleOAuthCompleteResult:
 
     db: Session = SessionLocal()
     try:
-        user = _users_client.upsert_google_identity(db, raw_profile)
-        permissions = _rbac_client.list_permissions_for_role(db, user.role_id)
-        access = create_access_token(user.user_claims, permissions=permissions)
+        user_read = _users_client.upsert_google_identity(db, raw_profile)
+        role_id = _rbac_client.get_primary_role_id_for_user(db, user_read.id)
+        permissions = _rbac_client.list_permissions_for_user(db, user_read.id)
+        user_claims = user_read.model_dump(mode="json")
+        user_claims["role_id"] = role_id
+        access = create_access_token(user_claims, permissions=permissions)
         refresh = create_refresh_token(
-            user.id,
-            extra_claims={"user": user.user_claims, "permissions": permissions},
+            user_read.id,
+            extra_claims={"user": user_claims, "permissions": permissions},
         )
         return GoogleOAuthCompleteResult(
             access_token=access,

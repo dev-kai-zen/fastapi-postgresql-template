@@ -1,16 +1,4 @@
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict
-
-
-class AuthUserIdentity(BaseModel):
-    """Snapshot after Google upsert for JWTs; owned by auth (not users.schema types)."""
-
-    model_config = ConfigDict(frozen=True)
-
-    id: int
-    role_id: int | None
-    user_claims: dict[str, Any]
+from pydantic import BaseModel
 
 
 class AccessTokenResponse(BaseModel):

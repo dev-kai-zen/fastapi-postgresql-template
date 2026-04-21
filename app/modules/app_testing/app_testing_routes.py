@@ -78,16 +78,18 @@ def _mint_app_testing_access_token(admin_code: str) -> dict[str, Any]:
         "id": 0,
         "google_id": "app-testing-local",
         "email": "app-testing@local.invalid",
-        "name": "App Testing",
+        "phone_number": None,
+        "first_name": "App",
+        "middle_name": None,
+        "last_name": "Testing",
+        "username": None,
         "picture": None,
-        "id_number": None,
-        "role_id": None,
-        "flags": {"app_testing": True},
         "is_active": 1,
-        "last_logged_in": None,
+        "last_login_at": None,
         "created_at": "1970-01-01T00:00:00Z",
         "updated_at": "1970-01-01T00:00:00Z",
         "deleted_at": None,
+        "role_id": None,
     }
     expires = timedelta(minutes=max(1, settings.app_testing_token_expire_minutes))
     access = create_access_token(user_claims, expires_delta=expires)

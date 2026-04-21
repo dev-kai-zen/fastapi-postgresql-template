@@ -31,6 +31,12 @@ def list_rbac_user_roles_by_role_id(
     return [RbacUserRoleRead.model_validate(row) for row in rows]
 
 
+def get_primary_role_id_for_user(db: Session, user_id: int) -> int | None:
+    """First role id from row order (`id` asc), or `None` if no assignments."""
+    rows = repository.list_rbac_user_roles_by_user_id(db, user_id)
+    return rows[0].role_id if rows else None
+
+
 def get_rbac_user_role_by_id(db: Session, user_role_id: int) -> RbacUserRoleRead:
     row = repository.get_rbac_user_role_by_id(db, user_role_id)
     if row is None:

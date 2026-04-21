@@ -4,21 +4,21 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
 from app.modules.users import repository
 from app.modules.users.schema import (
     UserCreate,
     UserGoogleInfo,
     UserListSortBy,
     UserListSortOrder,
-    UserPublic,
     UserRead,
     UserUpdate,
     UserListResponse,
 )
 
 
-def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserPublic:
-    """On Google login: update profile + last_logged_in if known; otherwise insert."""
+def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserRead:
+    """On Google login: update profile + last_login_at if known; otherwise insert."""
     now = datetime.now(UTC)
     existing = repository.get_user_by_google_id(db, data.google_id)
     if existing is not None:
@@ -27,24 +27,31 @@ def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserPublic:
             existing,
             UserUpdate(
                 email=data.email,
-                name=data.name,
+                first_name=data.first_name,
+                last_name=data.last_name,
                 picture=data.picture,
-                last_logged_in=now,
+                last_login_at=now,
             ),
         )
-        return UserPublic.model_validate(updated)
+        return UserRead.model_validate(updated)
 
     created = repository.create_user(
         db,
         UserCreate(
             google_id=data.google_id,
             email=data.email,
-            name=data.name,
+            first_name=data.first_name or "User",
+            last_name=data.last_name or "",
             picture=data.picture,
-            last_logged_in=now,
         ),
+        hashed_password=hash_password(""),
     )
-    return UserPublic.model_validate(created)
+    created = repository.update_user(
+        db,
+        created,
+        UserUpdate(last_login_at=now),
+    )
+    return UserRead.model_validate(created)
 
 
 def list_users(
@@ -71,7 +78,6 @@ def list_users(
     )
 
 
-
 def get_user_by_id(db: Session, user_id: int) -> UserRead:
     persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
@@ -80,20 +86,28 @@ def get_user_by_id(db: Session, user_id: int) -> UserRead:
         )
     return UserRead.model_validate(persisted_user)
 
+
 def get_users_by_ids(db: Session, ids: list[int]) -> list[UserRead]:
     persisted_users = repository.get_users_by_ids(db, ids)
     return [UserRead.model_validate(user) for user in persisted_users]
 
 
-
 def create_user(db: Session, create_data: UserCreate) -> UserRead:
+    hashed = (
+        hash_password(create_data.password)
+        if create_data.password
+        else hash_password("")
+    )
     try:
-        persisted_user = repository.create_user(db, create_data)
+        persisted_user = repository.create_user(db, create_data, hashed_password=hashed)
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User conflicts with existing email, google_id, or id_number",
+            detail=(
+                "User conflicts with existing email, google_id, phone_number, or "
+                "username"
+            ),
         ) from None
     return UserRead.model_validate(persisted_user)
 
@@ -104,13 +118,23 @@ def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
+    pwd_hash = (
+        hash_password(update_data.password)
+        if update_data.password is not None
+        else None
+    )
     try:
-        persisted_user = repository.update_user(db, persisted_user, update_data)
+        persisted_user = repository.update_user(
+            db, persisted_user, update_data, password_hash=pwd_hash
+        )
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="User conflicts with existing email, google_id, or id_number",
+            detail=(
+                "User conflicts with existing email, google_id, phone_number, or "
+                "username"
+            ),
         ) from None
     return UserRead.model_validate(persisted_user)
 

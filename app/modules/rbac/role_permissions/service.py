@@ -8,6 +8,7 @@ from app.modules.rbac.role_permissions.schema import (
     RbacRolePermissionRead,
     RbacRolePermissionUpdate,
 )
+from app.modules.rbac.user_roles import repository as user_roles_repository
 
 
 def list_permission_dicts_for_role(
@@ -17,6 +18,20 @@ def list_permission_dicts_for_role(
     if role_id is None:
         return []
     return repository.list_permission_dicts_for_role(db, role_id)
+
+
+def list_permission_dicts_for_user(db: Session, user_id: int) -> list[dict]:
+    """Union of permissions from all roles linked in `rbac_user_roles` (deduped by id)."""
+    assignments = user_roles_repository.list_rbac_user_roles_by_user_id(db, user_id)
+    seen: set[int] = set()
+    out: list[dict] = []
+    for a in assignments:
+        for p in list_permission_dicts_for_role(db, a.role_id):
+            pid = p["id"]
+            if pid not in seen:
+                seen.add(pid)
+                out.append(p)
+    return out
 
 
 def list_rbac_role_permissions(
