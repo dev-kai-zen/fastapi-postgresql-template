@@ -23,10 +23,10 @@ def list_rbac_roles(
 
 
 @router.get("/get-by-ids", response_model=list[RbacRoleRead])
-def get_rbac_roles_by_ids(
+def list_rbac_roles_by_ids(
     ids: list[int], db: Session = Depends(get_db)
 ) -> list[RbacRoleRead]:
-    return service.get_rbac_roles_by_ids(db, ids)
+    return service.list_rbac_roles_by_ids(db, ids)
 
 
 @router.get("/{role_id}", response_model=RbacRoleRead)

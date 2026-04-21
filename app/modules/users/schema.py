@@ -3,6 +3,9 @@ from enum import StrEnum
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
+from app.modules.rbac.role.schema import RbacRoleRead
+from app.modules.rbac.role_permissions.schema import RbacRolePermissionReadJoined
+
 
 class UserListSortBy(StrEnum):
     """Allowed `sort_by` values for list users (must match repository mapping)."""
@@ -114,3 +117,15 @@ class UserUpdate(BaseModel):
 class UserListResponse(BaseModel):
     data: list[UserRead]
     total: int
+
+
+class UserRolesAndPermissionsResponse(BaseModel):
+    user: UserRead
+    roles: list[RbacRoleRead]
+    permissions: list[RbacRolePermissionReadJoined]
+
+class UserCreeatRequest (BaseModel):
+    user: UserCreate
+    roles: list[int]
+    permissions: list[int]
+    user_id: int

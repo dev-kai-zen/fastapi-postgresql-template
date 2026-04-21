@@ -10,6 +10,7 @@ from app.modules.users.schema import (
     UserRead,
     UserUpdate,
     UserListResponse,
+    UserRolesAndPermissionsResponse,
 )
 
 from app.core.deps import require_access_token_payload
@@ -25,6 +26,10 @@ def list_users(
     search: str | None = None,
     sort_by: UserListSortBy = UserListSortBy.ID,
     sort_order: UserListSortOrder = UserListSortOrder.ASC,
+    include_deleted: bool = Query(
+        default=False,
+        description="Include soft-deleted users (`deleted_at` not null).",
+    ),
     db: Session = Depends(get_db),
 ) -> UserListResponse:
     users = service.list_users(
@@ -34,19 +39,40 @@ def list_users(
         search=search,
         sort_by=sort_by,
         sort_order=sort_order,
+        include_deleted=include_deleted,
     )
     return users
 
 
 @router.get("/get-by-ids", response_model=list[UserRead])
-def get_users_by_ids(ids: list[int], db: Session = Depends(get_db)) -> list[UserRead]:
-    return service.get_users_by_ids(db, ids)
+def get_users_by_ids(
+    ids: list[int],
+    include_deleted: bool = Query(
+        default=False,
+        description="Include soft-deleted users in the result set.",
+    ),
+    db: Session = Depends(get_db),
+) -> list[UserRead]:
+    return service.get_users_by_ids(db, ids, include_deleted=include_deleted)
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user_by_id(user_id: int, db: Session = Depends(get_db)) -> UserRead:
-    return service.get_user_by_id(db, user_id)
+def get_user_by_id(
+    user_id: int,
+    include_deleted: bool = Query(
+        default=False,
+        description="Allow loading a soft-deleted user by id.",
+    ),
+    db: Session = Depends(get_db),
+) -> UserRead:
+    return service.get_user_by_id(db, user_id, include_deleted=include_deleted)
 
+@router.get("/{user_id}/roles-permissions", response_model=UserRolesAndPermissionsResponse)
+def get_user_roles_and_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+) -> UserRolesAndPermissionsResponse:
+    return service.get_user_roles_and_permissions(db, user_id)
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(create_data: UserCreate, db: Session = Depends(get_db)) -> UserRead:

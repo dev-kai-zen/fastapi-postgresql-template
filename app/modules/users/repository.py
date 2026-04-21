@@ -6,7 +6,10 @@ from app.modules.users.model import User
 from app.modules.users.schema import UserCreate, UserUpdate
 
 
-def _not_deleted(query):
+def _filter_deleted(query, *, include_deleted: bool):
+    """By default exclude rows with `deleted_at` set; include them when `include_deleted` is True."""
+    if include_deleted:
+        return query
     return query.where(User.deleted_at.is_(None))
 
 
@@ -31,9 +34,11 @@ def _apply_user_search(query, search: str | None):
     )
 
 
-def count_users(db: Session, *, search: str | None = None) -> int:
+def count_users(
+    db: Session, *, search: str | None = None, include_deleted: bool = False
+) -> int:
     query = select(func.count()).select_from(User)
-    query = _not_deleted(query)
+    query = _filter_deleted(query, include_deleted=include_deleted)
     query = _apply_user_search(query, search)
     return int(db.scalar(query) or 0)
 
@@ -46,9 +51,10 @@ def get_users(
     search: str | None = None,
     sort_by: str = "id",
     sort_order: str = "asc",
+    include_deleted: bool = False,
 ) -> list[User]:
     query = select(User)
-    query = _not_deleted(query)
+    query = _filter_deleted(query, include_deleted=include_deleted)
     query = _apply_user_search(query, search)
 
     column = getattr(User, sort_by)
@@ -61,29 +67,47 @@ def get_users(
     return list(db.scalars(query).all())
 
 
-def get_user_by_id(db: Session, user_id: int) -> User | None:
+def get_user_by_id(
+    db: Session, user_id: int, *, include_deleted: bool = False
+) -> User | None:
     row = db.get(User, user_id)
-    if row is None or row.deleted_at is not None:
+    if row is None:
+        return None
+    if not include_deleted and row.deleted_at is not None:
         return None
     return row
 
 
-def get_users_by_ids(db: Session, ids: list[int]) -> list[User]:
+def get_user_by_id_with_roles_and_permissions(
+    db: Session, user_id: int, *, include_deleted: bool = False
+) -> User | None:
+    row = db.get(User, user_id)
+    if row is None:
+        return None
+    if not include_deleted and row.deleted_at is not None:
+        return None
+    return row
+
+    
+def get_users_by_ids(
+    db: Session, ids: list[int], *, include_deleted: bool = False
+) -> list[User]:
     if not ids:
         return []
-    stmt = select(User).where(
-        User.id.in_(ids),
-        User.deleted_at.is_(None),
-    )
+    stmt = select(User).where(User.id.in_(ids))
+    if not include_deleted:
+        stmt = stmt.where(User.deleted_at.is_(None))
     return list(db.scalars(stmt).all())
 
 
-def get_user_by_google_id(db: Session, google_id: str) -> User | None:
+def get_user_by_google_id(db: Session, google_id: str, *, include_deleted: bool = False) -> User | None:
     select_statement = (
         select(User)
-        .where(User.google_id == google_id, User.deleted_at.is_(None))
+        .where(User.google_id == google_id)
         .limit(1)
     )
+    if not include_deleted:
+        select_statement = select_statement.where(User.deleted_at.is_(None))
     return db.scalars(select_statement).first()
 
 

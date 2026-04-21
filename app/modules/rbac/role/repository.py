@@ -17,7 +17,7 @@ def get_rbac_role_by_id(db: Session, role_id: int) -> RbacRole | None:
     return db.get(RbacRole, role_id)
 
 
-def get_rbac_roles_by_ids(db: Session, ids: list[int]) -> list[RbacRole]:
+def list_rbac_roles_by_ids(db: Session, ids: list[int]) -> list[RbacRole]:
     return list(db.scalars(select(RbacRole).filter(RbacRole.id.in_(ids))).all())
 
 

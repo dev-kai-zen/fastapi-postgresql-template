@@ -18,8 +18,8 @@ def get_rbac_role_by_id(db: Session, role_id: int) -> RbacRoleRead:
     return RbacRoleRead.model_validate(rbac_role)
 
 
-def get_rbac_roles_by_ids(db: Session, ids: list[int]) -> list[RbacRoleRead]:
-    rows = repository.get_rbac_roles_by_ids(db, ids)
+def list_rbac_roles_by_ids(db: Session, ids: list[int]) -> list[RbacRoleRead]:
+    rows = repository.list_rbac_roles_by_ids(db, ids)
     return [RbacRoleRead.model_validate(row) for row in rows]
 
 

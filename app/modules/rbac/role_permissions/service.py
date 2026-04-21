@@ -2,64 +2,75 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.modules.rbac.permissions.model import RbacPermission
+from app.modules.rbac.role.model import RbacRole
 from app.modules.rbac.role_permissions import repository
+from app.modules.rbac.role_permissions.model import RbacRolePermissions
 from app.modules.rbac.role_permissions.schema import (
+    RbacPermissionBrief,
+    RbacRoleBrief,
     RbacRolePermissionCreate,
     RbacRolePermissionRead,
+    RbacRolePermissionReadJoined,
     RbacRolePermissionUpdate,
 )
-from app.modules.rbac.user_roles import repository as user_roles_repository
 
 
-def list_permission_dicts_for_role(
-    db: Session, role_id: int | None
-) -> list[dict]:
-    """JWT-friendly permission dicts for a role; empty if no role."""
-    if role_id is None:
-        return []
-    return repository.list_permission_dicts_for_role(db, role_id)
-
-
-def list_permission_dicts_for_user(db: Session, user_id: int) -> list[dict]:
-    """Union of permissions from all roles linked in `rbac_user_roles` (deduped by id)."""
-    assignments = user_roles_repository.list_rbac_user_roles_by_user_id(db, user_id)
-    seen: set[int] = set()
-    out: list[dict] = []
-    for a in assignments:
-        for p in list_permission_dicts_for_role(db, a.role_id):
-            pid = p["id"]
-            if pid not in seen:
-                seen.add(pid)
-                out.append(p)
-    return out
+def _to_joined_read(
+    row: tuple[RbacRolePermissions, RbacRole, RbacPermission],
+) -> RbacRolePermissionReadJoined:
+    rp, role, perm = row
+    return RbacRolePermissionReadJoined(
+        id=rp.id,
+        role_id=rp.role_id,
+        permission_id=rp.permission_id,
+        role=RbacRoleBrief.model_validate(role),
+        permission=RbacPermissionBrief.model_validate(perm),
+        created_at=rp.created_at,
+        updated_at=rp.updated_at,
+    )
 
 
 def list_rbac_role_permissions(
     db: Session, *, skip: int = 0, limit: int = 100
-) -> list[RbacRolePermissionRead]:
+) -> list[RbacRolePermissionReadJoined]:
     rows = repository.list_rbac_role_permissions(db, skip=skip, limit=limit)
-    return [RbacRolePermissionRead.model_validate(row) for row in rows]
+    return [_to_joined_read(r) for r in rows]
 
 
 def get_rbac_role_permission_by_id(
     db: Session, role_permission_id: int
-) -> RbacRolePermissionRead:
-    row = repository.get_rbac_role_permission_by_id(db, role_permission_id)
+) -> RbacRolePermissionReadJoined:
+    row = repository.get_rbac_role_permission_by_id_with_join(db, role_permission_id)
     if row is None:
         raise HTTPException(
             status_code=404, detail="Rbac role-permission link not found"
         )
-    return RbacRolePermissionRead.model_validate(row)
+    return _to_joined_read(row)
 
 
-def get_rbac_role_permissions_by_ids(
+def list_rbac_role_permissions_by_ids(
     db: Session, ids: list[int]
-) -> list[RbacRolePermissionRead]:
-    rows = repository.get_rbac_role_permissions_by_ids(db, ids)
-    return [RbacRolePermissionRead.model_validate(row) for row in rows]
+) -> list[RbacRolePermissionReadJoined]:
+    rows = repository.list_rbac_role_permissions_by_ids_with_join(db, ids)
+    return [_to_joined_read(r) for r in rows]
 
 
-def create_rbac_role_permission(
+def list_rbac_role_permissions_by_role_ids(
+    db: Session, role_ids: list[int]
+) -> list[RbacRolePermissionReadJoined]:
+    rows = repository.list_rbac_role_permissions_by_role_ids_with_join(db, role_ids)
+    return [_to_joined_read(r) for r in rows]
+
+
+def list_rbac_role_permissions_by_role_id(
+    db: Session, role_id: int
+) -> list[RbacRolePermissionReadJoined]:
+    rows = repository.list_rbac_role_permissions_by_role_id_with_join(db, role_id)
+    return [_to_joined_read(r) for r in rows]
+
+
+def create_rbac_role_permissions(
     db: Session, create_data: RbacRolePermissionCreate
 ) -> RbacRolePermissionRead:
     try:
@@ -73,7 +84,7 @@ def create_rbac_role_permission(
     return RbacRolePermissionRead.model_validate(row)
 
 
-def update_rbac_role_permission(
+def update_rbac_role_permissions(
     db: Session,
     role_permission_id: int,
     update_data: RbacRolePermissionUpdate,
@@ -94,7 +105,7 @@ def update_rbac_role_permission(
     return RbacRolePermissionRead.model_validate(row)
 
 
-def delete_rbac_role_permission(db: Session, role_permission_id: int) -> None:
+def delete_rbac_role_permissions(db: Session, role_permission_id: int) -> None:
     row = repository.get_rbac_role_permission_by_id(db, role_permission_id)
     if row is None:
         raise HTTPException(

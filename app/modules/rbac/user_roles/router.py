@@ -7,6 +7,8 @@ from app.modules.rbac.user_roles import service
 from app.modules.rbac.user_roles.schema import (
     RbacUserRoleCreate,
     RbacUserRoleRead,
+    RbacUserRoleReadJoined,
+    RbacUserRoleReadJoinedWithPermissions,
     RbacUserRoleUpdate,
 )
 
@@ -17,12 +19,12 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[RbacUserRoleRead])
+@router.get("", response_model=list[RbacUserRoleReadJoined])
 def list_rbac_user_roles(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=100),
     db: Session = Depends(get_db),
-) -> list[RbacUserRoleRead]:
+) -> list[RbacUserRoleReadJoined]:
     return service.list_rbac_user_roles(db, skip=skip, limit=limit)
 
 
@@ -33,11 +35,25 @@ def get_rbac_user_roles_by_ids(
     return service.get_rbac_user_roles_by_ids(db, ids)
 
 
-@router.get("/by-user/{user_id}", response_model=list[RbacUserRoleRead])
-def list_rbac_user_roles_by_user_id(
+@router.get(
+    "/by-user-ids",
+    response_model=list[RbacUserRoleReadJoinedWithPermissions],
+)
+def list_rbac_user_roles_by_user_ids(
+    user_ids: list[int] = Query(),
+    db: Session = Depends(get_db),
+) -> list[RbacUserRoleReadJoinedWithPermissions]:
+    return service.list_rbac_user_roles_by_user_ids(db, user_ids)
+
+
+@router.get(
+    "/by-user/{user_id}",
+    response_model=list[RbacUserRoleReadJoinedWithPermissions],
+)
+def get_rbac_user_roles_by_user_id(
     user_id: int, db: Session = Depends(get_db)
-) -> list[RbacUserRoleRead]:
-    return service.list_rbac_user_roles_by_user_id(db, user_id)
+) -> list[RbacUserRoleReadJoinedWithPermissions]:
+    return service.get_rbac_user_roles_by_user_id(db, user_id)
 
 
 @router.get("/by-role/{role_id}", response_model=list[RbacUserRoleRead])
@@ -59,27 +75,27 @@ def get_rbac_user_role_by_id(
     response_model=RbacUserRoleRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_rbac_user_role(
+def create_rbac_user_roles(
     create_data: RbacUserRoleCreate,
     db: Session = Depends(get_db),
     assigned_by: int = Depends(require_current_user_id),
 ) -> RbacUserRoleRead:
-    return service.create_rbac_user_role(
+    return service.create_rbac_user_roles(
         db, create_data, assigned_by=assigned_by
     )
 
 
 @router.patch("/{user_role_id}", response_model=RbacUserRoleRead)
-def update_rbac_user_role(
+def update_rbac_user_roles(
     user_role_id: int,
     update_data: RbacUserRoleUpdate,
     db: Session = Depends(get_db),
 ) -> RbacUserRoleRead:
-    return service.update_rbac_user_role(db, user_role_id, update_data)
+    return service.update_rbac_user_roles(db, user_role_id, update_data)
 
 
 @router.delete("/{user_role_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_rbac_user_role(
+def delete_rbac_user_roles(
     user_role_id: int, db: Session = Depends(get_db)
 ) -> None:
-    service.delete_rbac_user_role(db, user_role_id)
+    service.delete_rbac_user_roles(db, user_role_id)

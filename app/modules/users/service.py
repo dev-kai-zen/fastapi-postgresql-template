@@ -14,7 +14,12 @@ from app.modules.users.schema import (
     UserRead,
     UserUpdate,
     UserListResponse,
+    UserRolesAndPermissionsResponse,
 )
+
+from app.modules.users.rbac_client import RbacClient
+
+_rbac_client = RbacClient()
 
 
 def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserRead:
@@ -62,8 +67,11 @@ def list_users(
     search: str | None = None,
     sort_by: UserListSortBy = UserListSortBy.ID,
     sort_order: UserListSortOrder = UserListSortOrder.ASC,
+    include_deleted: bool = False,
 ) -> UserListResponse:
-    total = repository.count_users(db, search=search)
+    total = repository.count_users(
+        db, search=search, include_deleted=include_deleted
+    )
     rows = repository.get_users(
         db,
         skip=skip,
@@ -71,6 +79,7 @@ def list_users(
         search=search,
         sort_by=sort_by.value,
         sort_order=sort_order.value,
+        include_deleted=include_deleted,
     )
     return UserListResponse(
         data=[UserRead.model_validate(row) for row in rows],
@@ -78,17 +87,38 @@ def list_users(
     )
 
 
-def get_user_by_id(db: Session, user_id: int) -> UserRead:
-    persisted_user = repository.get_user_by_id(db, user_id)
+def get_user_by_id(
+    db: Session, user_id: int, *, include_deleted: bool = False
+) -> UserRead:
+    persisted_user = repository.get_user_by_id(
+        db, user_id, include_deleted=include_deleted
+    )
     if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     return UserRead.model_validate(persisted_user)
 
-
-def get_users_by_ids(db: Session, ids: list[int]) -> list[UserRead]:
-    persisted_users = repository.get_users_by_ids(db, ids)
+def get_user_roles_and_permissions(db: Session, user_id: int) -> UserRolesAndPermissionsResponse:
+    user = repository.get_user_by_id(db, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user_roles = _rbac_client.list_rbac_user_roles_by_user_id(db, user_id)
+    role_ids = list(dict.fromkeys(ur.role_id for ur in user_roles))
+    roles = _rbac_client.list_rbac_roles_by_ids(db, role_ids)
+    permissions = _rbac_client.list_rbac_role_permissions_by_role_ids(db, role_ids)
+    return UserRolesAndPermissionsResponse(
+        user=UserRead.model_validate(user),
+        roles=roles,
+        permissions=permissions,
+    )
+    
+def get_users_by_ids(
+    db: Session, ids: list[int], *, include_deleted: bool = False
+) -> list[UserRead]:
+    persisted_users = repository.get_users_by_ids(
+        db, ids, include_deleted=include_deleted
+    )
     return [UserRead.model_validate(user) for user in persisted_users]
 
 

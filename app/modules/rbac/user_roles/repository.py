@@ -2,20 +2,40 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.timezone import now_app
+from app.modules.rbac.role.model import RbacRole
 from app.modules.rbac.user_roles.model import RbacUserRoles
 from app.modules.rbac.user_roles.schema import RbacUserRoleCreate, RbacUserRoleUpdate
 
 
-def list_rbac_user_roles(
+def _user_roles_join_role_select():
+    return select(RbacUserRoles, RbacRole).join(
+        RbacRole, RbacUserRoles.role_id == RbacRole.id
+    )
+
+
+def list_rbac_user_roles_with_join(
     db: Session, *, skip: int = 0, limit: int = 100
-) -> list[RbacUserRoles]:
+) -> list[tuple[RbacUserRoles, RbacRole]]:
     stmt = (
-        select(RbacUserRoles)
+        _user_roles_join_role_select()
         .order_by(RbacUserRoles.id.asc())
         .offset(skip)
         .limit(limit)
     )
-    return list(db.scalars(stmt).all())
+    return [(r[0], r[1]) for r in db.execute(stmt).all()]
+
+
+def list_rbac_user_roles_by_user_ids_with_join(
+    db: Session, user_ids: list[int]
+) -> list[tuple[RbacUserRoles, RbacRole]]:
+    if not user_ids:
+        return []
+    stmt = (
+        _user_roles_join_role_select()
+        .where(RbacUserRoles.user_id.in_(user_ids))
+        .order_by(RbacUserRoles.id.asc())
+    )
+    return [(r[0], r[1]) for r in db.execute(stmt).all()]
 
 
 def list_rbac_user_roles_by_user_id(
