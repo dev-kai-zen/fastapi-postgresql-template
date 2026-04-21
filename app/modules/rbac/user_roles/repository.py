@@ -60,7 +60,7 @@ def list_rbac_user_roles_by_user_id(
     return list(db.scalars(stmt).all())
 
 
-def update_rbac_user_roles_by_user_id(
+def set_rbac_user_roles_by_user_id(
     db: Session,
     user_id: int,
     role_ids: list[int],

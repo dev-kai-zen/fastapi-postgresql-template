@@ -1,13 +1,12 @@
 """HTTP routes for role–permission links. Each handler delegates to `service` only."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
 from app.core.deps import require_access_token_payload
 from app.modules.rbac.role_permissions import service
 from app.modules.rbac.role_permissions.schema import (
-    RbacRolePermissionCreate,
     RbacRolePermissionReadJoined,
     RbacRolePermissionUpdate,
 )
@@ -49,26 +48,13 @@ def get_rbac_role_permissions_by_role_id(
     return service.get_rbac_role_permissions_by_role_id(db, role_id)
 
 
-@router.post(
-    "",
-    response_model=RbacRolePermissionReadJoined,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_rbac_role_permissions(
-    create_data: RbacRolePermissionCreate, db: Session = Depends(get_db)
-) -> RbacRolePermissionReadJoined:
-    return service.create_rbac_role_permissions(db, create_data)
-
-
 @router.patch(
     "/role/{role_id}",
     response_model=list[RbacRolePermissionReadJoined],
 )
-def update_rbac_role_permissions_by_role_id(
+def set_rbac_role_permissions_by_role_id(
     role_id: int,
     update_data: RbacRolePermissionUpdate,
     db: Session = Depends(get_db),
 ) -> list[RbacRolePermissionReadJoined]:
-    return service.update_rbac_role_permissions_by_role_id(
-        db, role_id, update_data
-    )
+    return service.set_rbac_role_permissions_by_role_id(db, role_id, update_data)

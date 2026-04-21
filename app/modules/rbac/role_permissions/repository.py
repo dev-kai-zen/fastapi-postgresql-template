@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.modules.rbac.permissions.model import RbacPermission
 from app.modules.rbac.role.model import RbacRole
 from app.modules.rbac.role_permissions.model import RbacRolePermissions
-from app.modules.rbac.role_permissions.schema import RbacRolePermissionCreate
 
 
 def _role_permission_joined_select():
@@ -57,18 +56,6 @@ def get_rbac_role_permissions_by_role_id(
     return _rows_joined(db, stmt)
 
 
-def get_rbac_role_permission_joined_by_link_id(
-    db: Session, role_permission_id: int
-) -> tuple[RbacRolePermissions, RbacRole, RbacPermission] | None:
-    stmt = _role_permission_joined_select().where(
-        RbacRolePermissions.id == role_permission_id
-    )
-    row = db.execute(stmt).first()
-    if row is None:
-        return None
-    return (row[0], row[1], row[2])
-
-
 def get_rbac_role_permission_by_id(
     db: Session, role_permission_id: int
 ) -> RbacRolePermissions | None:
@@ -85,28 +72,26 @@ def get_rbac_role_permission_by_role_and_permission_id(
     return db.scalars(stmt).first()
 
 
-def create_rbac_role_permissions(
-    db: Session, create_data: RbacRolePermissionCreate
-) -> RbacRolePermissions:
-    row = RbacRolePermissions(
-        role_id=create_data.role_id,
-        permission_id=create_data.permission_id,
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
-
-
-def update_rbac_role_permissions_by_role_id(
-    db: Session, role_id: int, permission_ids: list[int]
-) -> list[tuple[RbacRolePermissions, RbacRole, RbacPermission]]:
-    """Replace all permission rows for `role_id` with `permission_ids` (one transaction)."""
+def _delete_rbac_role_permissions_for_role_id(db: Session, role_id: int) -> None:
     db.execute(
         delete(RbacRolePermissions).where(RbacRolePermissions.role_id == role_id)
     )
+
+
+def _insert_rbac_role_permission_rows(
+    db: Session, role_id: int, permission_ids: list[int]
+) -> None:
     for pid in permission_ids:
         db.add(RbacRolePermissions(role_id=role_id, permission_id=pid))
+
+
+def set_rbac_role_permissions_by_role_id(
+    db: Session, role_id: int, permission_ids: list[int]
+) -> list[tuple[RbacRolePermissions, RbacRole, RbacPermission]]:
+    """Delete all links for `role_id`, then insert `permission_ids` (one transaction)."""
+    _delete_rbac_role_permissions_for_role_id(db, role_id)
+    db.flush()
+    _insert_rbac_role_permission_rows(db, role_id, permission_ids)
     db.commit()
     stmt = (
         _role_permission_joined_select()

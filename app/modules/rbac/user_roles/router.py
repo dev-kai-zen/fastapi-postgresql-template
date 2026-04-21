@@ -52,12 +52,12 @@ def get_rbac_user_roles_by_user_id(
     "/user/{user_id}",
     response_model=RbacUserRolesDetailByUserId,
 )
-def update_rbac_user_roles_by_user_id(
+def set_rbac_user_roles_by_user_id(
     user_id: int,
     update_data: RbacUserRoleUpdateByUserId,
     db: Session = Depends(get_db),
     assigned_by: int = Depends(require_current_user_id),
 ) -> RbacUserRolesDetailByUserId:
-    return service.update_rbac_user_roles_by_user_id(
+    return service.set_rbac_user_roles_by_user_id(
         db, user_id, update_data, assigned_by=assigned_by
     )

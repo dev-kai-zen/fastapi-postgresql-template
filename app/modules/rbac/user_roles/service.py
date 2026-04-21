@@ -144,7 +144,7 @@ def get_primary_role_id_for_user(db: Session, user_id: int) -> int | None:
     return rows[0].role_id if rows else None
 
 
-def update_rbac_user_roles_by_user_id(
+def set_rbac_user_roles_by_user_id(
     db: Session,
     user_id: int,
     update_data: RbacUserRoleUpdateByUserId,
@@ -156,7 +156,7 @@ def update_rbac_user_roles_by_user_id(
         raise HTTPException(status_code=404, detail="User not found")
     role_ids = list(dict.fromkeys(update_data.role_ids))
     try:
-        repository.update_rbac_user_roles_by_user_id(
+        repository.set_rbac_user_roles_by_user_id(
             db, user_id, role_ids, assigned_by=assigned_by
         )
     except IntegrityError:
@@ -164,7 +164,7 @@ def update_rbac_user_roles_by_user_id(
         raise HTTPException(
             status_code=409,
             detail=(
-                "User-role update conflicts (duplicate role or invalid role reference)"
+                "User-role set conflicts (duplicate role or invalid role reference)"
             ),
         ) from None
     return get_rbac_user_roles_by_user_id(db, user_id)
