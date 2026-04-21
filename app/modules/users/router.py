@@ -8,10 +8,11 @@ from app.modules.users.schema import (
     UserCreate,
     UserListSortBy,
     UserListSortOrder,
-    UserListWithRbacResponse,
+    UserListWithRolesResponse,
     UserRead,
-    UserRolesAndPermissionsResponse,
     UserUpdate,
+    UserWithRolesAndPermissionsResponse,
+    UserWithRolesResponse,
 )
 
 router = APIRouter(
@@ -21,7 +22,7 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=UserListWithRbacResponse)
+@router.get("", response_model=UserListWithRolesResponse)
 def list_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=100),
@@ -33,7 +34,7 @@ def list_users(
         description="Include soft-deleted users (`deleted_at` not null).",
     ),
     db: Session = Depends(get_db),
-) -> UserListWithRbacResponse:
+) -> UserListWithRolesResponse:
     return service.list_users(
         db,
         skip=skip,
@@ -45,7 +46,7 @@ def list_users(
     )
 
 
-@router.get("/get-by-ids", response_model=list[UserRolesAndPermissionsResponse])
+@router.get("/get-by-ids", response_model=list[UserWithRolesResponse])
 def list_users_by_ids(
     ids: list[int],
     include_deleted: bool = Query(
@@ -53,11 +54,11 @@ def list_users_by_ids(
         description="Include soft-deleted users in the result set.",
     ),
     db: Session = Depends(get_db),
-) -> list[UserRolesAndPermissionsResponse]:
+) -> list[UserWithRolesResponse]:
     return service.list_users_by_ids(db, ids, include_deleted=include_deleted)
 
 
-@router.get("/{user_id}", response_model=UserRolesAndPermissionsResponse)
+@router.get("/{user_id}", response_model=UserWithRolesAndPermissionsResponse)
 def get_users_by_id(
     user_id: int,
     include_deleted: bool = Query(
@@ -65,7 +66,7 @@ def get_users_by_id(
         description="Allow loading a soft-deleted user by id.",
     ),
     db: Session = Depends(get_db),
-) -> UserRolesAndPermissionsResponse:
+) -> UserWithRolesAndPermissionsResponse:
     return service.get_users_by_id(db, user_id, include_deleted=include_deleted)
 
 

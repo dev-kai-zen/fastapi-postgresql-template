@@ -5,18 +5,16 @@ from app.modules.rbac.role.schema import RbacRoleRead
 from app.modules.rbac.role_permissions import service as role_permissions_service
 from app.modules.rbac.role_permissions.schema import RbacRolePermissionReadJoined
 from app.modules.rbac.user_roles import service as user_roles_service
-from app.modules.rbac.user_roles.schema import RbacUserRoleRead
+from app.modules.rbac.user_roles.schema import RbacUserRoleRead, RbacUserRolesForUserId
 
 
 class RbacClient:
     """RBAC module boundary (local service today; HTTP later)."""
 
-    def list_rbac_user_roles_assignments_for_user_ids(
+    def list_rbac_user_roles_by_user_ids(
         self, db: Session, user_ids: list[int]
-    ) -> list[RbacUserRoleRead]:
-        return user_roles_service.list_rbac_user_role_assignments_for_user_ids(
-            db, user_ids
-        )
+    ) -> list[RbacUserRolesForUserId]:
+        return user_roles_service.list_rbac_user_roles_by_user_ids(db, user_ids)
 
     def list_rbac_user_roles_by_user_id(
         self, db: Session, user_id: int

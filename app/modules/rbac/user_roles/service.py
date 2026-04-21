@@ -124,13 +124,6 @@ def get_rbac_user_roles_by_user_id(
     )
 
 
-def list_rbac_user_role_assignments_for_user_ids(
-    db: Session, user_ids: list[int]
-) -> list[RbacUserRoleRead]:
-    rows = repository.list_rbac_user_roles_assignments_for_user_ids(db, user_ids)
-    return [RbacUserRoleRead.model_validate(row) for row in rows]
-
-
 def list_rbac_user_roles_by_user_id(
     db: Session, user_id: int
 ) -> list[RbacUserRoleRead]:

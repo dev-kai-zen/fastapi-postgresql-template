@@ -119,16 +119,25 @@ class UserListResponse(BaseModel):
     total: int
 
 
-class UserRolesAndPermissionsResponse(BaseModel):
+class UserWithRolesResponse(BaseModel):
+    """User row with role definitions (no permission expansion)."""
+
+    user: UserRead
+    roles: list[RbacRoleRead]
+
+
+class UserWithRolesAndPermissionsResponse(BaseModel):
+    """User with roles and union of role→permission links, deduped by `permission_id`."""
+
     user: UserRead
     roles: list[RbacRoleRead]
     permissions: list[RbacRolePermissionReadJoined]
 
 
-class UserListWithRbacResponse(BaseModel):
-    """Paginated users with roles and permissions (composed via `RbacClient` in service)."""
+class UserListWithRolesResponse(BaseModel):
+    """Paginated users with roles only (`RbacClient` composes in `users.service`)."""
 
-    data: list[UserRolesAndPermissionsResponse]
+    data: list[UserWithRolesResponse]
     total: int
 
 

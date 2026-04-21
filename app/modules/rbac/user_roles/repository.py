@@ -36,19 +36,6 @@ def list_rbac_user_roles_by_user_ids(
     return [(r[0], r[1]) for r in db.execute(stmt).all()]
 
 
-def list_rbac_user_roles_assignments_for_user_ids(
-    db: Session, user_ids: list[int]
-) -> list[RbacUserRoles]:
-    if not user_ids:
-        return []
-    stmt = (
-        select(RbacUserRoles)
-        .where(RbacUserRoles.user_id.in_(user_ids))
-        .order_by(RbacUserRoles.user_id.asc(), RbacUserRoles.id.asc())
-    )
-    return list(db.scalars(stmt).all())
-
-
 def list_rbac_user_roles_by_user_id(
     db: Session, user_id: int
 ) -> list[RbacUserRoles]:

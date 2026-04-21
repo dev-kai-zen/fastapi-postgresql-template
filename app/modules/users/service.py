@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -13,62 +12,50 @@ from app.modules.users.schema import (
     UserGoogleInfo,
     UserListSortBy,
     UserListSortOrder,
-    UserListWithRbacResponse,
+    UserListWithRolesResponse,
     UserRead,
-    UserRolesAndPermissionsResponse,
     UserUpdate,
+    UserWithRolesAndPermissionsResponse,
+    UserWithRolesResponse,
 )
 from app.modules.users.rbac_client import RbacClient
 
 _rbac_client = RbacClient()
 
 
-def _user_roles_and_permissions_for_user(
+def _user_with_roles_and_permissions_for_user(
     db: Session, user: User
-) -> UserRolesAndPermissionsResponse:
+) -> UserWithRolesAndPermissionsResponse:
     user_roles = _rbac_client.list_rbac_user_roles_by_user_id(db, user.id)
     role_ids = list(dict.fromkeys(ur.role_id for ur in user_roles))
     roles = _rbac_client.list_rbac_roles_by_ids(db, role_ids)
-    permissions = _rbac_client.list_rbac_role_permissions_by_role_ids(db, role_ids)
-    return UserRolesAndPermissionsResponse(
+    permissions_raw = _rbac_client.list_rbac_role_permissions_by_role_ids(
+        db, role_ids
+    )
+    seen_perm: set[int] = set()
+    permissions: list = []
+    for p in permissions_raw:
+        if p.permission_id not in seen_perm:
+            seen_perm.add(p.permission_id)
+            permissions.append(p)
+    return UserWithRolesAndPermissionsResponse(
         user=UserRead.model_validate(user),
         roles=roles,
         permissions=permissions,
     )
 
 
-def _users_with_rbac_batch(
-    db: Session, users: list[User]
-) -> list[UserRolesAndPermissionsResponse]:
+def _users_with_roles_batch(db: Session, users: list[User]) -> list[UserWithRolesResponse]:
     if not users:
         return []
     user_ids = [u.id for u in users]
-    assignments = _rbac_client.list_rbac_user_roles_assignments_for_user_ids(
-        db, user_ids
-    )
-    user_to_role_ids: dict[int, list[int]] = defaultdict(list)
-    for a in assignments:
-        user_to_role_ids[a.user_id].append(a.role_id)
-    all_role_ids = list(dict.fromkeys(a.role_id for a in assignments))
-    roles_by_id = {
-        r.id: r for r in _rbac_client.list_rbac_roles_by_ids(db, all_role_ids)
-    } if all_role_ids else {}
-    permissions_all = (
-        _rbac_client.list_rbac_role_permissions_by_role_ids(db, all_role_ids)
-        if all_role_ids
-        else []
-    )
-    out: list[UserRolesAndPermissionsResponse] = []
-    for u in users:
-        uid = u.id
-        role_ids = list(dict.fromkeys(user_to_role_ids.get(uid, [])))
-        roles = [roles_by_id[rid] for rid in role_ids if rid in roles_by_id]
-        perms = [p for p in permissions_all if p.role_id in role_ids]
+    rbac_by_user = _rbac_client.list_rbac_user_roles_by_user_ids(db, user_ids)
+    out: list[UserWithRolesResponse] = []
+    for u, row in zip(users, rbac_by_user, strict=True):
         out.append(
-            UserRolesAndPermissionsResponse(
+            UserWithRolesResponse(
                 user=UserRead.model_validate(u),
-                roles=roles,
-                permissions=perms,
+                roles=row.roles,
             )
         )
     return out
@@ -120,7 +107,7 @@ def list_users(
     sort_by: UserListSortBy = UserListSortBy.ID,
     sort_order: UserListSortOrder = UserListSortOrder.ASC,
     include_deleted: bool = False,
-) -> UserListWithRbacResponse:
+) -> UserListWithRolesResponse:
     total = repository.count_users(
         db, search=search, include_deleted=include_deleted
     )
@@ -133,24 +120,24 @@ def list_users(
         sort_order=sort_order.value,
         include_deleted=include_deleted,
     )
-    data = _users_with_rbac_batch(db, rows)
-    return UserListWithRbacResponse(data=data, total=total)
+    data = _users_with_roles_batch(db, rows)
+    return UserListWithRolesResponse(data=data, total=total)
 
 
 def list_users_by_ids(
     db: Session, ids: list[int], *, include_deleted: bool = False
-) -> list[UserRolesAndPermissionsResponse]:
+) -> list[UserWithRolesResponse]:
     rows = repository.get_users_by_ids(db, ids, include_deleted=include_deleted)
     if not rows:
         return []
     by_id = {u.id: u for u in rows}
     ordered = [by_id[i] for i in ids if i in by_id]
-    return _users_with_rbac_batch(db, ordered)
+    return _users_with_roles_batch(db, ordered)
 
 
 def get_users_by_id(
     db: Session, user_id: int, *, include_deleted: bool = False
-) -> UserRolesAndPermissionsResponse:
+) -> UserWithRolesAndPermissionsResponse:
     user = repository.get_user_by_id(
         db, user_id, include_deleted=include_deleted
     )
@@ -158,7 +145,7 @@ def get_users_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
-    return _user_roles_and_permissions_for_user(db, user)
+    return _user_with_roles_and_permissions_for_user(db, user)
 
 
 def get_user_by_id(
