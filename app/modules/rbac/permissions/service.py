@@ -41,7 +41,7 @@ def create_rbac_permission(
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail="Rbac permission name already exists",
+            detail="Rbac permission code already exists",
         ) from None
     return RbacPermissionRead.model_validate(rbac_permission)
 
@@ -60,7 +60,7 @@ def update_rbac_permission(
         db.rollback()
         raise HTTPException(
             status_code=409,
-            detail="Rbac permission name already exists",
+            detail="Rbac permission code already exists",
         ) from None
     return RbacPermissionRead.model_validate(rbac_permission)
 

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class RbacPermissionBase(BaseModel):
-    name: str = Field(max_length=255)
+    code: str = Field(max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     group_id: int | None = None
 
@@ -20,6 +20,6 @@ class RbacPermissionRead(RbacPermissionBase):
 
 
 class RbacPermissionUpdate(BaseModel):
-    name: str | None = Field(default=None, max_length=255)
+    code: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=2000)
     group_id: int | None = None

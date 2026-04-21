@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
@@ -6,20 +7,71 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.modules.users import repository
+from app.modules.users.model import User
 from app.modules.users.schema import (
     UserCreate,
     UserGoogleInfo,
     UserListSortBy,
     UserListSortOrder,
+    UserListWithRbacResponse,
     UserRead,
-    UserUpdate,
-    UserListResponse,
     UserRolesAndPermissionsResponse,
+    UserUpdate,
 )
-
 from app.modules.users.rbac_client import RbacClient
 
 _rbac_client = RbacClient()
+
+
+def _user_roles_and_permissions_for_user(
+    db: Session, user: User
+) -> UserRolesAndPermissionsResponse:
+    user_roles = _rbac_client.list_rbac_user_roles_by_user_id(db, user.id)
+    role_ids = list(dict.fromkeys(ur.role_id for ur in user_roles))
+    roles = _rbac_client.list_rbac_roles_by_ids(db, role_ids)
+    permissions = _rbac_client.list_rbac_role_permissions_by_role_ids(db, role_ids)
+    return UserRolesAndPermissionsResponse(
+        user=UserRead.model_validate(user),
+        roles=roles,
+        permissions=permissions,
+    )
+
+
+def _users_with_rbac_batch(
+    db: Session, users: list[User]
+) -> list[UserRolesAndPermissionsResponse]:
+    if not users:
+        return []
+    user_ids = [u.id for u in users]
+    assignments = _rbac_client.list_rbac_user_roles_assignments_for_user_ids(
+        db, user_ids
+    )
+    user_to_role_ids: dict[int, list[int]] = defaultdict(list)
+    for a in assignments:
+        user_to_role_ids[a.user_id].append(a.role_id)
+    all_role_ids = list(dict.fromkeys(a.role_id for a in assignments))
+    roles_by_id = {
+        r.id: r for r in _rbac_client.list_rbac_roles_by_ids(db, all_role_ids)
+    } if all_role_ids else {}
+    permissions_all = (
+        _rbac_client.list_rbac_role_permissions_by_role_ids(db, all_role_ids)
+        if all_role_ids
+        else []
+    )
+    out: list[UserRolesAndPermissionsResponse] = []
+    for u in users:
+        uid = u.id
+        role_ids = list(dict.fromkeys(user_to_role_ids.get(uid, [])))
+        roles = [roles_by_id[rid] for rid in role_ids if rid in roles_by_id]
+        perms = [p for p in permissions_all if p.role_id in role_ids]
+        out.append(
+            UserRolesAndPermissionsResponse(
+                user=UserRead.model_validate(u),
+                roles=roles,
+                permissions=perms,
+            )
+        )
+    return out
 
 
 def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserRead:
@@ -68,7 +120,7 @@ def list_users(
     sort_by: UserListSortBy = UserListSortBy.ID,
     sort_order: UserListSortOrder = UserListSortOrder.ASC,
     include_deleted: bool = False,
-) -> UserListResponse:
+) -> UserListWithRbacResponse:
     total = repository.count_users(
         db, search=search, include_deleted=include_deleted
     )
@@ -81,10 +133,32 @@ def list_users(
         sort_order=sort_order.value,
         include_deleted=include_deleted,
     )
-    return UserListResponse(
-        data=[UserRead.model_validate(row) for row in rows],
-        total=total,
+    data = _users_with_rbac_batch(db, rows)
+    return UserListWithRbacResponse(data=data, total=total)
+
+
+def list_users_by_ids(
+    db: Session, ids: list[int], *, include_deleted: bool = False
+) -> list[UserRolesAndPermissionsResponse]:
+    rows = repository.get_users_by_ids(db, ids, include_deleted=include_deleted)
+    if not rows:
+        return []
+    by_id = {u.id: u for u in rows}
+    ordered = [by_id[i] for i in ids if i in by_id]
+    return _users_with_rbac_batch(db, ordered)
+
+
+def get_users_by_id(
+    db: Session, user_id: int, *, include_deleted: bool = False
+) -> UserRolesAndPermissionsResponse:
+    user = repository.get_user_by_id(
+        db, user_id, include_deleted=include_deleted
     )
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    return _user_roles_and_permissions_for_user(db, user)
 
 
 def get_user_by_id(
@@ -99,20 +173,7 @@ def get_user_by_id(
         )
     return UserRead.model_validate(persisted_user)
 
-def get_user_roles_and_permissions(db: Session, user_id: int) -> UserRolesAndPermissionsResponse:
-    user = repository.get_user_by_id(db, user_id)
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    user_roles = _rbac_client.list_rbac_user_roles_by_user_id(db, user_id)
-    role_ids = list(dict.fromkeys(ur.role_id for ur in user_roles))
-    roles = _rbac_client.list_rbac_roles_by_ids(db, role_ids)
-    permissions = _rbac_client.list_rbac_role_permissions_by_role_ids(db, role_ids)
-    return UserRolesAndPermissionsResponse(
-        user=UserRead.model_validate(user),
-        roles=roles,
-        permissions=permissions,
-    )
-    
+
 def get_users_by_ids(
     db: Session, ids: list[int], *, include_deleted: bool = False
 ) -> list[UserRead]:
@@ -129,7 +190,9 @@ def create_user(db: Session, create_data: UserCreate) -> UserRead:
         else hash_password("")
     )
     try:
-        persisted_user = repository.create_user(db, create_data, hashed_password=hashed)
+        persisted_user = repository.create_user(
+            db, create_data, hashed_password=hashed
+        )
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -142,7 +205,9 @@ def create_user(db: Session, create_data: UserCreate) -> UserRead:
     return UserRead.model_validate(persisted_user)
 
 
-def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
+def update_user_by_id(
+    db: Session, user_id: int, update_data: UserUpdate
+) -> UserRead:
     persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(
@@ -169,7 +234,7 @@ def update_user(db: Session, user_id: int, update_data: UserUpdate) -> UserRead:
     return UserRead.model_validate(persisted_user)
 
 
-def delete_user(db: Session, user_id: int) -> None:
+def delete_user_by_id(db: Session, user_id: int) -> None:
     persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(

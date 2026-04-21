@@ -1,25 +1,27 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.deps import require_access_token_payload
 from app.modules.users import service
 from app.modules.users.schema import (
     UserCreate,
     UserListSortBy,
     UserListSortOrder,
+    UserListWithRbacResponse,
     UserRead,
-    UserUpdate,
-    UserListResponse,
     UserRolesAndPermissionsResponse,
+    UserUpdate,
 )
 
-from app.core.deps import require_access_token_payload
-
 router = APIRouter(
-    prefix="/users", tags=["users"], dependencies=[Depends(require_access_token_payload)])
+    prefix="/users",
+    tags=["users"],
+    dependencies=[Depends(require_access_token_payload)],
+)
 
 
-@router.get("", response_model=UserListResponse)
+@router.get("", response_model=UserListWithRbacResponse)
 def list_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=100),
@@ -31,8 +33,8 @@ def list_users(
         description="Include soft-deleted users (`deleted_at` not null).",
     ),
     db: Session = Depends(get_db),
-) -> UserListResponse:
-    users = service.list_users(
+) -> UserListWithRbacResponse:
+    return service.list_users(
         db,
         skip=skip,
         limit=limit,
@@ -41,38 +43,31 @@ def list_users(
         sort_order=sort_order,
         include_deleted=include_deleted,
     )
-    return users
 
 
-@router.get("/get-by-ids", response_model=list[UserRead])
-def get_users_by_ids(
+@router.get("/get-by-ids", response_model=list[UserRolesAndPermissionsResponse])
+def list_users_by_ids(
     ids: list[int],
     include_deleted: bool = Query(
         default=False,
         description="Include soft-deleted users in the result set.",
     ),
     db: Session = Depends(get_db),
-) -> list[UserRead]:
-    return service.get_users_by_ids(db, ids, include_deleted=include_deleted)
+) -> list[UserRolesAndPermissionsResponse]:
+    return service.list_users_by_ids(db, ids, include_deleted=include_deleted)
 
 
-@router.get("/{user_id}", response_model=UserRead)
-def get_user_by_id(
+@router.get("/{user_id}", response_model=UserRolesAndPermissionsResponse)
+def get_users_by_id(
     user_id: int,
     include_deleted: bool = Query(
         default=False,
         description="Allow loading a soft-deleted user by id.",
     ),
     db: Session = Depends(get_db),
-) -> UserRead:
-    return service.get_user_by_id(db, user_id, include_deleted=include_deleted)
-
-@router.get("/{user_id}/roles-permissions", response_model=UserRolesAndPermissionsResponse)
-def get_user_roles_and_permissions(
-    user_id: int,
-    db: Session = Depends(get_db),
 ) -> UserRolesAndPermissionsResponse:
-    return service.get_user_roles_and_permissions(db, user_id)
+    return service.get_users_by_id(db, user_id, include_deleted=include_deleted)
+
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(create_data: UserCreate, db: Session = Depends(get_db)) -> UserRead:
@@ -80,12 +75,12 @@ def create_user(create_data: UserCreate, db: Session = Depends(get_db)) -> UserR
 
 
 @router.patch("/{user_id}", response_model=UserRead)
-def update_user(
+def update_user_by_id(
     user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)
 ) -> UserRead:
-    return service.update_user(db, user_id, update_data)
+    return service.update_user_by_id(db, user_id, update_data)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: Session = Depends(get_db)) -> None:
-    service.delete_user(db, user_id)
+def delete_user_by_id(user_id: int, db: Session = Depends(get_db)) -> None:
+    service.delete_user_by_id(db, user_id)

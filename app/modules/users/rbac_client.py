@@ -11,6 +11,13 @@ from app.modules.rbac.user_roles.schema import RbacUserRoleRead
 class RbacClient:
     """RBAC module boundary (local service today; HTTP later)."""
 
+    def list_rbac_user_roles_assignments_for_user_ids(
+        self, db: Session, user_ids: list[int]
+    ) -> list[RbacUserRoleRead]:
+        return user_roles_service.list_rbac_user_role_assignments_for_user_ids(
+            db, user_ids
+        )
+
     def list_rbac_user_roles_by_user_id(
         self, db: Session, user_id: int
     ) -> list[RbacUserRoleRead]:
@@ -20,11 +27,6 @@ class RbacClient:
         self, db: Session, ids: list[int]
     ) -> list[RbacRoleRead]:
         return role_service.list_rbac_roles_by_ids(db, ids)
-
-    def list_rbac_role_permissions_by_ids(
-        self, db: Session, ids: list[int]
-    ) -> list[RbacRolePermissionReadJoined]:
-        return role_permissions_service.list_rbac_role_permissions_by_ids(db, ids)
 
     def list_rbac_role_permissions_by_role_ids(
         self, db: Session, role_ids: list[int]

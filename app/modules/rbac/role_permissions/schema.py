@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -30,7 +31,7 @@ class RbacPermissionBrief(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
+    code: str
     description: str | None
 
 
@@ -47,5 +48,6 @@ class RbacRolePermissionReadJoined(BaseModel):
 
 
 class RbacRolePermissionUpdate(BaseModel):
-    role_id: int | None = Field(default=None, ge=1)
-    permission_id: int | None = Field(default=None, ge=1)
+    """Replace the role’s permission set with this list (order preserved; duplicates dropped)."""
+
+    permission_ids: list[Annotated[int, Field(ge=1)]] = Field(default_factory=list)

@@ -78,17 +78,6 @@ def get_user_by_id(
     return row
 
 
-def get_user_by_id_with_roles_and_permissions(
-    db: Session, user_id: int, *, include_deleted: bool = False
-) -> User | None:
-    row = db.get(User, user_id)
-    if row is None:
-        return None
-    if not include_deleted and row.deleted_at is not None:
-        return None
-    return row
-
-    
 def get_users_by_ids(
     db: Session, ids: list[int], *, include_deleted: bool = False
 ) -> list[User]:

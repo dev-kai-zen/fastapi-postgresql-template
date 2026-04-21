@@ -124,6 +124,14 @@ class UserRolesAndPermissionsResponse(BaseModel):
     roles: list[RbacRoleRead]
     permissions: list[RbacRolePermissionReadJoined]
 
+
+class UserListWithRbacResponse(BaseModel):
+    """Paginated users with roles and permissions (composed via `RbacClient` in service)."""
+
+    data: list[UserRolesAndPermissionsResponse]
+    total: int
+
+
 class UserCreeatRequest (BaseModel):
     user: UserCreate
     roles: list[int]

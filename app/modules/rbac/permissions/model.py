@@ -12,7 +12,7 @@ class RbacPermission(Base):
     __tablename__ = "rbac_permissions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(255), unique=True)
+    code: Mapped[str] = mapped_column(String(255), unique=True)
     description: Mapped[str | None] = mapped_column(
         String(2000), nullable=True)
     group_id: Mapped[int] = mapped_column(

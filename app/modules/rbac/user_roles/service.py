@@ -7,97 +7,128 @@ from sqlalchemy.orm import Session
 from app.modules.rbac.role.model import RbacRole
 from app.modules.rbac.role.schema import RbacRoleRead
 from app.modules.rbac.role_permissions import service as role_permissions_service
+from app.modules.rbac.role_permissions.schema import RbacRolePermissionReadJoined
 from app.modules.rbac.users_client import users_client
 from app.modules.rbac.user_roles import repository
 from app.modules.rbac.user_roles.model import RbacUserRoles
-from app.modules.rbac.role_permissions.schema import RbacRolePermissionReadJoined
 from app.modules.rbac.user_roles.schema import (
-    RbacUserRoleCreate,
     RbacUserRoleRead,
-    RbacUserRoleReadJoined,
-    RbacUserRoleReadJoinedWithPermissions,
-    RbacUserRoleUpdate,
+    RbacUserRoleUpdateByUserId,
+    RbacUserRolesDetailByUserId,
+    RbacUserRolesForUserId,
+    RbacUserRolesListItemWithUser,
     RbacUserRoleUserBrief,
 )
 
 
-def _user_ids_for_assignment_rows(
+def _roles_by_user_id_ordered(
     rows: list[tuple[RbacUserRoles, RbacRole]],
-) -> list[int]:
-    out: list[int] = []
-    for ur, _ in rows:
-        out.append(ur.user_id)
-        out.append(ur.assigned_by)
-    return list(dict.fromkeys(out))
+) -> dict[int, list[RbacRole]]:
+    by_user: dict[int, list[RbacRole]] = defaultdict(list)
+    seen_pair: set[tuple[int, int]] = set()
+    for ur, role in rows:
+        key = (ur.user_id, role.id)
+        if key not in seen_pair:
+            seen_pair.add(key)
+            by_user[ur.user_id].append(role)
+    return by_user
 
 
-def _to_joined(
-    ur: RbacUserRoles,
-    role: RbacRole,
-    users_map: dict[int, RbacUserRoleUserBrief],
-) -> RbacUserRoleReadJoined:
-    user = users_map.get(ur.user_id)
-    assigned_by_user = users_map.get(ur.assigned_by)
-    if user is None or assigned_by_user is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Inconsistent user reference for RBAC user-role assignment",
-        )
-    return RbacUserRoleReadJoined(
-        id=ur.id,
-        user_id=ur.user_id,
-        role_id=ur.role_id,
-        assigned_by=ur.assigned_by,
-        assigned_at=ur.assigned_at,
-        created_at=ur.created_at,
-        updated_at=ur.updated_at,
-        user=user,
-        role=RbacRoleRead.model_validate(role),
-        assigned_by_user=assigned_by_user,
-    )
+def _unique_role_permissions_by_permission_id(
+    items: list[RbacRolePermissionReadJoined],
+) -> list[RbacRolePermissionReadJoined]:
+    seen: set[int] = set()
+    out: list[RbacRolePermissionReadJoined] = []
+    for p in items:
+        if p.permission_id not in seen:
+            seen.add(p.permission_id)
+            out.append(p)
+    return out
 
 
 def list_rbac_user_roles(
     db: Session, *, skip: int = 0, limit: int = 100
-) -> list[RbacUserRoleReadJoined]:
-    rows = repository.list_rbac_user_roles_with_join(db, skip=skip, limit=limit)
-    users_map = users_client.get_users_by_ids_map(
-        db, _user_ids_for_assignment_rows(rows)
-    )
-    return [_to_joined(ur, role, users_map) for ur, role in rows]
+) -> list[RbacUserRolesListItemWithUser]:
+    rows = repository.list_rbac_user_roles(db, skip=skip, limit=limit)
+    if not rows:
+        return []
+    user_ids_order: list[int] = []
+    seen_u: set[int] = set()
+    for ur, _ in rows:
+        if ur.user_id not in seen_u:
+            seen_u.add(ur.user_id)
+            user_ids_order.append(ur.user_id)
+    roles_by_user = _roles_by_user_id_ordered(rows)
+    users_map = users_client.get_users_by_ids_map(db, user_ids_order)
+    out: list[RbacUserRolesListItemWithUser] = []
+    for uid in user_ids_order:
+        user = users_map.get(uid)
+        if user is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Inconsistent user reference for RBAC user-role assignment",
+            )
+        roles = roles_by_user.get(uid, [])
+        out.append(
+            RbacUserRolesListItemWithUser(
+                user=user,
+                roles=[RbacRoleRead.model_validate(r) for r in roles],
+            )
+        )
+    return out
 
 
 def list_rbac_user_roles_by_user_ids(
     db: Session, user_ids: list[int]
-) -> list[RbacUserRoleReadJoinedWithPermissions]:
-    rows = repository.list_rbac_user_roles_by_user_ids_with_join(db, user_ids)
-    if not rows:
+) -> list[RbacUserRolesForUserId]:
+    if not user_ids:
         return []
-    users_map = users_client.get_users_by_ids_map(
-        db, _user_ids_for_assignment_rows(rows)
-    )
-    role_ids = list(dict.fromkeys(ur.role_id for ur, _ in rows))
-    perms = role_permissions_service.list_rbac_role_permissions_by_role_ids(
-        db, role_ids
-    )
-    by_role: dict[int, list[RbacRolePermissionReadJoined]] = defaultdict(list)
-    for p in perms:
-        by_role[p.role_id].append(p)
-    return [
-        RbacUserRoleReadJoinedWithPermissions.model_validate(
-            {
-                **_to_joined(ur, role, users_map).model_dump(),
-                "permissions": list(by_role.get(ur.role_id, [])),
-            }
+    users_map = users_client.get_users_by_ids_map(db, user_ids)
+    missing = [uid for uid in user_ids if uid not in users_map]
+    if missing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User(s) not found: {missing}",
         )
-        for ur, role in rows
+    rows = repository.list_rbac_user_roles_by_user_ids(db, user_ids)
+    by_user = _roles_by_user_id_ordered(rows)
+    return [
+        RbacUserRolesForUserId(
+            user_id=uid,
+            roles=[RbacRoleRead.model_validate(r) for r in by_user.get(uid, [])],
+        )
+        for uid in user_ids
     ]
 
 
 def get_rbac_user_roles_by_user_id(
     db: Session, user_id: int
-) -> list[RbacUserRoleReadJoinedWithPermissions]:
-    return list_rbac_user_roles_by_user_ids(db, [user_id])
+) -> RbacUserRolesDetailByUserId:
+    users_map = users_client.get_users_by_ids_map(db, [user_id])
+    if user_id not in users_map:
+        raise HTTPException(status_code=404, detail="User not found")
+    rows = repository.list_rbac_user_roles_by_user_ids(db, [user_id])
+    roles_list = _roles_by_user_id_ordered(rows).get(user_id, [])
+    roles_read = [RbacRoleRead.model_validate(r) for r in roles_list]
+    role_ids = [r.id for r in roles_list]
+    perms = (
+        role_permissions_service.list_rbac_role_permissions_by_role_ids(db, role_ids)
+        if role_ids
+        else []
+    )
+    unique_perms = _unique_role_permissions_by_permission_id(perms)
+    return RbacUserRolesDetailByUserId(
+        user_id=user_id,
+        roles=roles_read,
+        role_permissions=unique_perms,
+    )
+
+
+def list_rbac_user_role_assignments_for_user_ids(
+    db: Session, user_ids: list[int]
+) -> list[RbacUserRoleRead]:
+    rows = repository.list_rbac_user_roles_assignments_for_user_ids(db, user_ids)
+    return [RbacUserRoleRead.model_validate(row) for row in rows]
 
 
 def list_rbac_user_roles_by_user_id(
@@ -107,82 +138,33 @@ def list_rbac_user_roles_by_user_id(
     return [RbacUserRoleRead.model_validate(row) for row in rows]
 
 
-def list_rbac_user_roles_by_role_id(
-    db: Session, role_id: int
-) -> list[RbacUserRoleRead]:
-    rows = repository.list_rbac_user_roles_by_role_id(db, role_id)
-    return [RbacUserRoleRead.model_validate(row) for row in rows]
-
-
 def get_primary_role_id_for_user(db: Session, user_id: int) -> int | None:
     """First role id from row order (`id` asc), or `None` if no assignments."""
     rows = repository.list_rbac_user_roles_by_user_id(db, user_id)
     return rows[0].role_id if rows else None
 
 
-def get_rbac_user_role_by_id(db: Session, user_role_id: int) -> RbacUserRoleRead:
-    row = repository.get_rbac_user_role_by_id(db, user_role_id)
-    if row is None:
-        raise HTTPException(
-            status_code=404, detail="RBAC user-role assignment not found"
-        )
-    return RbacUserRoleRead.model_validate(row)
-
-
-def get_rbac_user_roles_by_ids(
-    db: Session, ids: list[int]
-) -> list[RbacUserRoleRead]:
-    rows = repository.get_rbac_user_roles_by_ids(db, ids)
-    return [RbacUserRoleRead.model_validate(row) for row in rows]
-
-
-def create_rbac_user_roles(
-    db: Session, create_data: RbacUserRoleCreate, *, assigned_by: int
-) -> RbacUserRoleRead:
-    try:
-        row = repository.create_rbac_user_role(
-            db, create_data, assigned_by=assigned_by
-        )
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "User-role assignment conflicts (duplicate user/role or invalid "
-                "user/role reference)"
-            ),
-        ) from None
-    return RbacUserRoleRead.model_validate(row)
-
-
-def update_rbac_user_roles(
+def update_rbac_user_roles_by_user_id(
     db: Session,
-    user_role_id: int,
-    update_data: RbacUserRoleUpdate,
-) -> RbacUserRoleRead:
-    row = repository.get_rbac_user_role_by_id(db, user_role_id)
-    if row is None:
-        raise HTTPException(
-            status_code=404, detail="RBAC user-role assignment not found"
-        )
+    user_id: int,
+    update_data: RbacUserRoleUpdateByUserId,
+    *,
+    assigned_by: int,
+) -> RbacUserRolesDetailByUserId:
+    users_map = users_client.get_users_by_ids_map(db, [user_id])
+    if user_id not in users_map:
+        raise HTTPException(status_code=404, detail="User not found")
+    role_ids = list(dict.fromkeys(update_data.role_ids))
     try:
-        row = repository.update_rbac_user_role(db, row, update_data)
+        repository.update_rbac_user_roles_by_user_id(
+            db, user_id, role_ids, assigned_by=assigned_by
+        )
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=409,
             detail=(
-                "User-role assignment conflicts (duplicate user/role or invalid "
-                "user/role reference)"
+                "User-role update conflicts (duplicate role or invalid role reference)"
             ),
         ) from None
-    return RbacUserRoleRead.model_validate(row)
-
-
-def delete_rbac_user_roles(db: Session, user_role_id: int) -> None:
-    row = repository.get_rbac_user_role_by_id(db, user_role_id)
-    if row is None:
-        raise HTTPException(
-            status_code=404, detail="RBAC user-role assignment not found"
-        )
-    repository.delete_rbac_user_role(db, row)
+    return get_rbac_user_roles_by_user_id(db, user_id)

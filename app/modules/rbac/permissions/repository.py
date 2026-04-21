@@ -30,7 +30,7 @@ def create_rbac_permission(
     db: Session, create_data: RbacPermissionCreate
 ) -> RbacPermission:
     rbac_permission = RbacPermission(
-        name=create_data.name,
+        code=create_data.code,
         description=create_data.description,
         group_id=create_data.group_id,
     )

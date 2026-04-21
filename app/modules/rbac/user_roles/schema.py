@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,13 +17,6 @@ class RbacUserRoleUserBrief(BaseModel):
     picture: str | None = None
 
 
-class RbacUserRoleCreate(BaseModel):
-    """Assign a role to a user. `assigned_by` is set from the access token in the API."""
-
-    user_id: int = Field(ge=1)
-    role_id: int = Field(ge=1)
-
-
 class RbacUserRoleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -35,27 +29,29 @@ class RbacUserRoleRead(BaseModel):
     updated_at: datetime
 
 
-class RbacUserRoleUpdate(BaseModel):
-    user_id: int | None = Field(default=None, ge=1)
-    role_id: int | None = Field(default=None, ge=1)
+class RbacUserRolesListItemWithUser(BaseModel):
+    """User info with distinct roles (from the current list page, grouped by user)."""
 
-
-class RbacUserRoleReadJoined(BaseModel):
-    """Assignment with subject user, role, and assigner (same-module role join + users via client)."""
-
-    id: int
-    user_id: int
-    role_id: int
-    assigned_by: int
-    assigned_at: datetime
-    created_at: datetime
-    updated_at: datetime
     user: RbacUserRoleUserBrief
-    role: RbacRoleRead
-    assigned_by_user: RbacUserRoleUserBrief
+    roles: list[RbacRoleRead]
 
 
-class RbacUserRoleReadJoinedWithPermissions(RbacUserRoleReadJoined):
-    """Per-assignment row plus permissions linked to `role_id`."""
+class RbacUserRolesForUserId(BaseModel):
+    """One user id and that user’s roles (order matches `user_ids` on batch endpoints)."""
 
-    permissions: list[RbacRolePermissionReadJoined]
+    user_id: int
+    roles: list[RbacRoleRead]
+
+
+class RbacUserRolesDetailByUserId(BaseModel):
+    """User’s roles plus union of role→permission links, deduped by `permission_id`."""
+
+    user_id: int
+    roles: list[RbacRoleRead]
+    role_permissions: list[RbacRolePermissionReadJoined]
+
+
+class RbacUserRoleUpdateByUserId(BaseModel):
+    """Replace all role assignments for the user with this role id set."""
+
+    role_ids: list[Annotated[int, Field(ge=1)]] = Field(default_factory=list)
