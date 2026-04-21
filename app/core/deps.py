@@ -34,3 +34,22 @@ def require_access_token_payload(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
         )
+
+
+def require_current_user_id(
+    payload: dict = Depends(require_access_token_payload),
+) -> int:
+    """Numeric `users.id` from the access token `user` claim (for audit fields)."""
+    user = payload.get("user")
+    if not isinstance(user, dict):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user",
+        )
+    uid = user.get("id")
+    if not isinstance(uid, int):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user id",
+        )
+    return uid

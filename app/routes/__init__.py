@@ -9,6 +9,7 @@ from app.modules.rbac.role.router import router as rbac_roles_router
 from app.modules.rbac.role_permissions.router import (
     router as rbac_role_permissions_router,
 )
+from app.modules.rbac.user_roles.router import router as rbac_user_roles_router
 from app.modules.users.router import router as users_router
 
 def register_v1_routes() -> APIRouter:
@@ -21,4 +22,5 @@ def register_v1_routes() -> APIRouter:
     router.include_router(rbac_permissions_router)
     router.include_router(rbac_roles_router)
     router.include_router(rbac_role_permissions_router)
+    router.include_router(rbac_user_roles_router)
     return router
