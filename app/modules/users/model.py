@@ -19,7 +19,7 @@ class User(Base):
     middle_name: Mapped[str] = mapped_column(String(255), nullable=True)
     last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str] = mapped_column(String(255), unique=True, nullable=True)
-    hashed_password: Mapped[str] = mapped_column(String(255))
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     picture: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     is_active: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0"), index=True

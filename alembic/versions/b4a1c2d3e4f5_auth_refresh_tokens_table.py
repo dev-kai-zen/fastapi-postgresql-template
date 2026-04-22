@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import inspect
 
 revision: str = "b4a1c2d3e4f5"
 down_revision: Union[str, Sequence[str], None] = "7088cb5c3e26"
@@ -18,6 +19,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    if "auth_refresh_tokens" in inspect(bind).get_table_names():
+        return
     op.create_table(
         "auth_refresh_tokens",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -39,4 +43,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("auth_refresh_tokens")
+    bind = op.get_bind()
+    if "auth_refresh_tokens" in inspect(bind).get_table_names():
+        op.drop_table("auth_refresh_tokens")

@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+
 from app.core.security import hash_password
 from app.modules.users import repository
 from app.modules.users.model import User
@@ -87,8 +88,7 @@ def upsert_google_identity(db: Session, data: UserGoogleInfo) -> UserRead:
             first_name=data.first_name or "User",
             last_name=data.last_name or "",
             picture=data.picture,
-        ),
-        hashed_password=hash_password(""),
+        )
     )
     created = repository.update_user(
         db,
@@ -127,7 +127,8 @@ def list_users(
 def list_users_by_ids(
     db: Session, ids: list[int], *, include_deleted: bool = False
 ) -> list[UserWithRolesResponse]:
-    rows = repository.get_users_by_ids(db, ids, include_deleted=include_deleted)
+    rows = repository.get_users_by_ids(
+        db, ids, include_deleted=include_deleted)
     if not rows:
         return []
     by_id = {u.id: u for u in rows}
@@ -172,9 +173,7 @@ def get_users_by_ids(
 
 def create_user(db: Session, create_data: UserCreate) -> UserRead:
     hashed = (
-        hash_password(create_data.password)
-        if create_data.password
-        else hash_password("")
+        hash_password(create_data.password) if create_data.password else None
     )
     try:
         persisted_user = repository.create_user(

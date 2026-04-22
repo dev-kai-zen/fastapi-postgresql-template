@@ -59,8 +59,10 @@ def hash_password(plain_password: str) -> str:
     return hashed.decode("ascii")
 
 
-def verify_password(plain_password: str, password_hash: str) -> bool:
+def verify_password(plain_password: str, password_hash: str | None) -> bool:
     """Return True if `plain_password` matches the bcrypt `password_hash` string."""
+    if not password_hash:
+        return False
     secret = plain_password.encode("utf-8")
     if len(secret) > _MAX_PASSWORD_BYTES:
         secret = secret[:_MAX_PASSWORD_BYTES]

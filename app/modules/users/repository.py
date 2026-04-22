@@ -100,7 +100,7 @@ def get_user_by_google_id(db: Session, google_id: str, *, include_deleted: bool 
     return db.scalars(select_statement).first()
 
 
-def create_user(db: Session, create_data: UserCreate, *, hashed_password: str) -> User:
+def create_user(db: Session, create_data: UserCreate, *, hashed_password: str | None = None) -> User:
     persisted_user = User(
         google_id=create_data.google_id,
         email=create_data.email,
