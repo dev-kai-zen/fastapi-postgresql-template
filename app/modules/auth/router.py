@@ -8,8 +8,6 @@ from app.core.db import get_db
 from app.modules.auth import service
 from app.modules.auth.schema import AccessTokenResponse, GoogleOAuthCompleteResult
 
-from app.core.deps import require_access_token_payload
-
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
