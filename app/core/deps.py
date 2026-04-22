@@ -32,8 +32,8 @@ def require_access_token_payload(
                 detail="Access token expired; sign in again",
             )
         new_access = auth_service.refresh_access_token(db, refresh_token)
-        response.headers[NEW_ACCESS_TOKEN_HEADER] = new_access
-        return decode_access_token(new_access)
+        response.headers[NEW_ACCESS_TOKEN_HEADER] = new_access["access_token"]
+        return decode_access_token(new_access["access_token"])
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
