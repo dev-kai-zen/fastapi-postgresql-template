@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Cookie, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.constants import REFRESH_TOKEN_COOKIE_NAME
+from app.core.db import get_db
 from app.modules.auth import service
 from app.modules.auth.schema import AccessTokenResponse, UserInfoResponse
 
@@ -42,17 +44,17 @@ def _google_login_redirect() -> RedirectResponse:
     return RedirectResponse(service.get_google_login_redirect_url())
 
 
-@router.get("/google/login", include_in_schema=False)
+@router.get("/google/login")
 async def google_login_get():
     return _google_login_redirect()
 
 
-@router.post("/google/login", include_in_schema=False)
+@router.post("/google/login")
 async def google_login_post():
     return _google_login_redirect()
 
 
-@router.get("/google/callback", include_in_schema=False)
+@router.get("/google/callback")
 async def google_callback(code: str = Query(...)):
     result = await service.complete_google_oauth(code)
     body = AccessTokenResponse(access_token=result.access_token)
@@ -61,24 +63,26 @@ async def google_callback(code: str = Query(...)):
     return response
 
 
-@router.post("/retry-login", response_model=AccessTokenResponse, include_in_schema=False)
+@router.post("/retry-login", response_model=AccessTokenResponse)
 async def retry_login(
+    db: Session = Depends(get_db),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ):
-    access = service.refresh_access_from_cookie(refresh_token)
+    access = service.refresh_access_from_cookie(db, refresh_token)
     return AccessTokenResponse(access_token=access)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, include_in_schema=False)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
+    db: Session = Depends(get_db),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ) -> Response:
-    service.logout_revoking_refresh_token(refresh_token)
+    service.logout_revoking_refresh_token(db, refresh_token)
     out = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_refresh_cookie(out)
     return out
 
 
-@router.get("/user-info", response_model=UserInfoResponse, include_in_schema=False)
+@router.get("/user-info", response_model=UserInfoResponse)
 def user_info():
     return service.get_user_info()

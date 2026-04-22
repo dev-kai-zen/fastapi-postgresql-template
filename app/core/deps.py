@@ -1,14 +1,19 @@
 import jwt
 from fastapi import Cookie, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
 from app.core.constants import NEW_ACCESS_TOKEN_HEADER, REFRESH_TOKEN_COOKIE_NAME
-from app.core.security import decode_access_token, refresh_access_token
+from app.core.db import get_db
+from app.core.security import decode_access_token
+from app.modules.auth import service as auth_service
 
 _bearer = HTTPBearer(auto_error=False)
 
 
 def require_access_token_payload(
     response: Response,
+    db: Session = Depends(get_db),
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ) -> dict:
@@ -26,7 +31,7 @@ def require_access_token_payload(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Access token expired; sign in again",
             )
-        new_access = refresh_access_token(refresh_token)
+        new_access = auth_service.refresh_access_token(db, refresh_token)
         response.headers[NEW_ACCESS_TOKEN_HEADER] = new_access
         return decode_access_token(new_access)
     except jwt.PyJWTError:

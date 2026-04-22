@@ -20,7 +20,6 @@ class Settings(BaseSettings):
     api_v1_prefix: str  # from env API_V1_PREFIX
 
     database_url: str  # from env DATABASE_URL
-    redis_url: str  # from env REDIS_URL
 
     jwt_secret_key: str  # from env JWT_SECRET_KEY
     jwt_algorithm: str  # from env JWT_ALGORITHM
@@ -37,8 +36,6 @@ class Settings(BaseSettings):
     # Comma-separated browser origins allowed for credentialed CORS (e.g. `http://localhost:5173`).
     # If empty, the origin of `frontend_oauth_success_url` is used.
     cors_allow_origins: str = ""  # from env CORS_ALLOW_ORIGINS
-
-    # Redis-backed per-IP limits on routes under `api_v1_prefix` (see `RateLimitMiddleware`).
     # Defaults apply when env vars are omitted (e.g. Docker compose without these keys).
     rate_limit_enabled: bool = True  # from env RATE_LIMIT_ENABLED
     rate_limit_window_seconds: int = 60  # from env RATE_LIMIT_WINDOW_SECONDS

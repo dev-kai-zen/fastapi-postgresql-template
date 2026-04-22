@@ -1,15 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import HTTPException, status
-
 from app.core.config import Settings, get_settings
-
-from contextlib import contextmanager
-from collections.abc import Generator
-import uuid
-
-import redis
 
 import bcrypt
 
@@ -18,6 +10,7 @@ import jwt
 
 def create_access_token(
     user: dict,
+    roles: list[dict],
     permissions: list[dict] = [],
     extra_claims: dict[str, Any] | None = None,
     expires_delta: timedelta | None = None,
@@ -30,6 +23,7 @@ def create_access_token(
     expire = now + expires_delta
     payload: dict[str, Any] = {
         "user": user,
+        "roles": roles,
         "permissions": permissions,
         "exp": expire,
         "iat": now,
@@ -46,8 +40,9 @@ def decode_access_token(token: str) -> dict[str, Any]:
     settings: Settings = get_settings()
     secret_key: str = settings.jwt_secret_key
     algorithm: str = settings.jwt_algorithm
-    
-    return jwt.decode(token, secret_key, algorithms=[algorithm]) # type: ignore
+
+    # type: ignore
+    return jwt.decode(token, secret_key, algorithms=[algorithm])
 
 
 # bcrypt truncates secrets longer than 72 bytes; keep passwords within normal UX limits.
@@ -73,117 +68,3 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return bcrypt.checkpw(secret, password_hash.encode("ascii"))
     except ValueError:
         return False
-
-
-_REFRESH_REVOKE_PREFIX = "auth:refresh:revoked:"
-
-
-@contextmanager
-def _redis_client() -> Generator[redis.Redis, None, None]:
-    client = redis.from_url(get_settings().redis_url, decode_responses=True)
-    try:
-        yield client
-    finally:
-        client.close()
-
-
-def _decode_refresh_payload(token: str) -> dict[str, Any]:
-    """Verify signature and expiry; ensure claims mark this as a refresh token."""
-    settings: Settings = get_settings()
-    secret_key: str = settings.jwt_secret_key
-    algorithm: str = settings.jwt_algorithm
-    payload = jwt.decode(token, secret_key, algorithms=[algorithm])  # type: ignore
-    if payload.get("token_use") != "refresh":
-        raise jwt.InvalidTokenError("Not a refresh token")
-    jti = payload.get("jti")
-    if not jti or not isinstance(jti, str):
-        raise jwt.InvalidTokenError("Refresh token missing jti")
-    return payload
-
-
-def create_refresh_token(
-    subject: str | int,
-    *,
-    extra_claims: dict[str, Any] | None = None,
-    expires_delta: timedelta | None = None,
-) -> str:
-    """Return a signed refresh JWT (`token_use=refresh`, unique `jti`).
-
-    For stateless refresh→access rotation, pass `extra_claims={"user": {...}}` with the
-    same `user` object you put in access tokens so `refresh_access_token()` needs no DB.
-    """
-    settings: Settings = get_settings()
-    now = datetime.now(UTC)
-    if expires_delta is None:
-        expires_delta = timedelta(days=settings.refresh_token_expire_days)
-    expire = now + expires_delta
-    payload: dict[str, Any] = {
-        "sub": str(subject),
-        "exp": expire,
-        "iat": now,
-        "jti": str(uuid.uuid4()),
-        "token_use": "refresh",
-    }
-    if extra_claims:
-        payload.update(extra_claims)
-    secret_key: str = settings.jwt_secret_key
-    algorithm: str = settings.jwt_algorithm
-    return jwt.encode(payload, secret_key, algorithm=algorithm)  # type: ignore
-
-
-def verify_refresh_token(token: str) -> dict[str, Any]:
-    """Decode a refresh token and ensure it has not been revoked (Redis)."""
-    payload = _decode_refresh_payload(token)
-    jti = str(payload["jti"])
-    with _redis_client() as r:
-        if r.get(f"{_REFRESH_REVOKE_PREFIX}{jti}"):
-            raise jwt.InvalidTokenError("Refresh token has been revoked")
-    return payload
-
-
-_REFRESH_TOKEN_USER_CLAIM = "user"
-
-
-def refresh_access_token(refresh_token: str) -> str:
-    """
-    Mint a new access JWT from a valid refresh JWT only (no DB / users module).
-
-    The refresh token must include a `user` claim (same shape as in the access token),
-    embedded when the refresh was created. Old refresh tokens without `user` are rejected.
-    """
-    try:
-        payload = verify_refresh_token(refresh_token)
-    except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-        ) from exc
-    user = payload.get(_REFRESH_TOKEN_USER_CLAIM)
-    if not isinstance(user, dict):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token; sign in again",
-        )
-    permissions_raw = payload.get("permissions")
-    if permissions_raw is None:
-        permissions: list[dict] = []
-    elif isinstance(permissions_raw, list):
-        permissions = [p for p in permissions_raw if isinstance(p, dict)]
-    else:
-        permissions = []
-    return create_access_token(user, permissions=permissions)
-
-
-def revoke_refresh_token(token: str) -> None:
-    """Store `jti` in Redis until token expiry so `verify_refresh_token` rejects it. Idempotent."""
-    payload = _decode_refresh_payload(token)
-    jti = str(payload["jti"])
-    exp = payload.get("exp")
-    if exp is None:
-        return
-    exp_ts = int(exp)
-    remaining = exp_ts - int(datetime.now(UTC).timestamp())
-    if remaining <= 0:
-        return
-    with _redis_client() as r:
-        r.setex(f"{_REFRESH_REVOKE_PREFIX}{jti}", remaining, "1")

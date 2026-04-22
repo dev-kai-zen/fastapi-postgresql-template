@@ -17,7 +17,6 @@ from app.modules.rbac.user_roles.schema import (
     RbacUserRolesDetailByUserId,
     RbacUserRolesForUserId,
     RbacUserRolesListItemWithUser,
-    RbacUserRoleUserBrief,
 )
 
 
@@ -101,7 +100,7 @@ def list_rbac_user_roles_by_user_ids(
     ]
 
 
-def get_rbac_user_roles_by_user_id(
+def get_rbac_user_roles_permissions_by_user_id(
     db: Session, user_id: int
 ) -> RbacUserRolesDetailByUserId:
     users_map = users_client.get_users_by_ids_map(db, [user_id])
@@ -160,4 +159,4 @@ def set_rbac_user_roles_by_user_id(
                 "User-role set conflicts (duplicate role or invalid role reference)"
             ),
         ) from None
-    return get_rbac_user_roles_by_user_id(db, user_id)
+    return get_rbac_user_roles_permissions_by_user_id(db, user_id)

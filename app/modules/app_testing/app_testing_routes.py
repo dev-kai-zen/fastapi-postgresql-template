@@ -1,8 +1,7 @@
 import secrets
 from datetime import timedelta
-from typing import Any, Callable, cast
+from typing import Any, cast
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -10,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.deps import require_access_token_payload
-from app.core.redis_client import get_redis
 from app.core.security import create_access_token
 
 router = APIRouter()
@@ -31,13 +29,6 @@ async def health() -> dict[str, str]:
 def db_ping(db: Session = Depends(get_db)) -> dict[str, bool | int]:
     one = cast(int, db.execute(text("SELECT 1")).scalar_one())
     return {"ok": True, "select_1": one}
-
-
-@router.get("/redis-ping")
-def redis_ping(r: redis.Redis = Depends(get_redis)):
-    # Yes, even when using a shared pool, you use the dependency the same way.
-    pong = cast(Callable[[], bool], r.ping)()
-    return {"ok": True, "ping": pong}
 
 
 @router.get("/app-testing/token-check")
@@ -92,7 +83,9 @@ def _mint_app_testing_access_token(admin_code: str) -> dict[str, Any]:
         "role_id": None,
     }
     expires = timedelta(minutes=max(1, settings.app_testing_token_expire_minutes))
-    access = create_access_token(user_claims, expires_delta=expires)
+    access = create_access_token(
+        user_claims, roles=[], permissions=[], expires_delta=expires
+    )
     return {
         "access_token": access,
         "token_type": "bearer",

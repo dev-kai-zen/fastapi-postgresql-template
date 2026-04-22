@@ -42,10 +42,10 @@ def list_rbac_user_roles_by_user_ids(
     "/user/{user_id}",
     response_model=RbacUserRolesDetailByUserId,
 )
-def get_rbac_user_roles_by_user_id(
+def get_rbac_user_roles_permissions_by_user_id(
     user_id: int, db: Session = Depends(get_db)
 ) -> RbacUserRolesDetailByUserId:
-    return service.get_rbac_user_roles_by_user_id(db, user_id)
+    return service.get_rbac_user_roles_permissions_by_user_id(db, user_id)
 
 
 @router.patch(

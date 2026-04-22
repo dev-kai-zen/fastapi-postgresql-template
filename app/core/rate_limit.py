@@ -1,17 +1,25 @@
-"""Per-IP fixed-window rate limits (Redis). Stricter bucket for auth routes."""
+"""Per-IP fixed-window rate limits (in-process). Stricter bucket for auth routes.
+
+Counters live in memory per process; they are not shared across workers or replicas.
+For strict global limits in production, use an external store or edge rate limiting.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from threading import Lock
 
-import redis
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import Settings
+
+# (window_id, count) per logical key; resets when the window rolls.
+_window_state: dict[str, tuple[int, int]] = {}
+_state_lock = Lock()
 
 
 def client_ip(request: Request) -> str:
@@ -24,7 +32,6 @@ def client_ip(request: Request) -> str:
 
 
 def _enforce_fixed_window(
-    redis_url: str,
     key: str,
     limit: int,
     window_seconds: int,
@@ -34,13 +41,15 @@ def _enforce_fixed_window(
         return True, 0
     now = int(time.time())
     window_id = now // window_seconds
-    redis_key = f"rl:{key}:{window_id}"
-    with redis.from_url(redis_url, decode_responses=True) as r:
-        pipe = r.pipeline()
-        pipe.incr(redis_key)
-        pipe.expire(redis_key, window_seconds)
-        count_s, _ = pipe.execute()
-        count = int(count_s)
+    state_key = f"rl:{key}"
+    with _state_lock:
+        stored = _window_state.get(state_key)
+        if stored is None or stored[0] != window_id:
+            count = 1
+            _window_state[state_key] = (window_id, count)
+        else:
+            count = stored[1] + 1
+            _window_state[state_key] = (window_id, count)
         if count > limit:
             retry_after = window_seconds - (now % window_seconds)
             if retry_after <= 0:
@@ -84,7 +93,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         allowed, retry_after = await asyncio.to_thread(
             _enforce_fixed_window,
-            s.redis_url,
             key,
             limit,
             s.rate_limit_window_seconds,

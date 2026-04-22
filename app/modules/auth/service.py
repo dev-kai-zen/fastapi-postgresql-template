@@ -1,23 +1,34 @@
 from dataclasses import dataclass
 
+import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal
-from app.core.security import (
-    create_access_token,
-    create_refresh_token,
-    refresh_access_token,
-    revoke_refresh_token,
-)
+from app.core.security import create_access_token
+from app.core.refresh_token import service as refresh_token_service
 from app.modules.auth.oauth_client import GoogleOAuthClient, OAuthClientError
 from app.modules.auth.rbac_client import RbacClient
 from app.modules.auth.schema import UserInfoResponse
 from app.modules.auth.users_client import UsersClient
+from app.modules.users.schema import UserRead
 
 _oauth_client = GoogleOAuthClient()
 _users_client = UsersClient()
 _rbac_client = RbacClient()
+
+
+def _mint_access_token_for_user(db: Session, user_read: UserRead) -> str:
+    user_roles_permissions = _rbac_client.get_rbac_user_roles_permissions_by_user_id(
+        db, user_read.id
+    )
+    user_claims = user_read.model_dump(mode="json")
+    roles_claims = [role.model_dump(mode="json") for role in user_roles_permissions.roles]
+    permissions_claims = [
+        permission.model_dump(mode="json")
+        for permission in user_roles_permissions.role_permissions
+    ]
+    return create_access_token(user_claims, roles=roles_claims, permissions=permissions_claims)
 
 
 @dataclass(frozen=True)
@@ -40,15 +51,8 @@ async def complete_google_oauth(code: str) -> GoogleOAuthCompleteResult:
     db: Session = SessionLocal()
     try:
         user_read = _users_client.upsert_google_identity(db, raw_profile)
-        role_id = _rbac_client.get_primary_role_id_for_user(db, user_read.id)
-        permissions = _rbac_client.list_permissions_for_user(db, user_read.id)
-        user_claims = user_read.model_dump(mode="json")
-        user_claims["role_id"] = role_id
-        access = create_access_token(user_claims, permissions=permissions)
-        refresh = create_refresh_token(
-            user_read.id,
-            extra_claims={"user": user_claims, "permissions": permissions},
-        )
+        access = _mint_access_token_for_user(db, user_read)
+        refresh = refresh_token_service.issue_refresh_token(db, user_read.id)
         return GoogleOAuthCompleteResult(
             access_token=access,
             refresh_token=refresh,
@@ -57,22 +61,53 @@ async def complete_google_oauth(code: str) -> GoogleOAuthCompleteResult:
         db.close()
 
 
-def refresh_access_from_cookie(refresh_token: str | None) -> str:
+def refresh_access_token(db: Session, refresh_token: str) -> str:
+    """Validate refresh session, then mint access JWT via users + RBAC clients."""
+    try:
+        payload = refresh_token_service.verify_refresh_session(db, refresh_token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        ) from exc
+    sub = payload.get("sub")
+    try:
+        user_id = int(sub) if sub is not None else -1
+    except (TypeError, ValueError):
+        user_id = -1
+    if user_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token; sign in again",
+        )
+    try:
+        user_read = _users_client.get_user(db, user_id)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_404_NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token; sign in again",
+            ) from exc
+        raise
+    return _mint_access_token_for_user(db, user_read)
+
+
+def refresh_access_from_cookie(db: Session, refresh_token: str | None) -> str:
     """Mint a new access token from the refresh cookie; raises HTTPException if missing/invalid."""
     if refresh_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing refresh token",
         )
-    return refresh_access_token(refresh_token)
+    return refresh_access_token(db, refresh_token)
 
 
-def logout_revoking_refresh_token(refresh_token: str | None) -> None:
-    """Best-effort revoke refresh JWT (Redis); ignores errors so logout always clears cookie."""
+def logout_revoking_refresh_token(db: Session, refresh_token: str | None) -> None:
+    """Revoke refresh JWT in the database; ignores errors so logout always clears cookie."""
     if not refresh_token:
         return
     try:
-        revoke_refresh_token(refresh_token)
+        refresh_token_service.revoke_refresh_token(db, refresh_token)
     except Exception:
         pass
 
