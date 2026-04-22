@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.deps import require_access_token_payload, require_current_user_id
+from app.dependencies.token_payload_deps import require_access_token_payload, require_current_user_id
 from app.modules.rbac.user_roles import service
 from app.modules.rbac.user_roles.schema import (
     RbacUserRolesDetailByUserId,

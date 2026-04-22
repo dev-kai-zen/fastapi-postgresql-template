@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.core.deps import require_access_token_payload
+from app.dependencies.token_payload_deps import require_access_token_payload
 from app.core.security import create_access_token
 
 router = APIRouter()

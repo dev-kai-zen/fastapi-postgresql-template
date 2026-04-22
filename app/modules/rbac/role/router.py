@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.deps import require_access_token_payload
+from app.dependencies.token_payload_deps import require_access_token_payload
 from app.modules.rbac.role import service
 from app.modules.rbac.role.schema import RbacRoleCreate, RbacRoleRead, RbacRoleUpdate
 
