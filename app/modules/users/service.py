@@ -135,7 +135,7 @@ def list_users_by_ids(
     return _users_with_roles_batch(db, ordered)
 
 
-def get_users_by_id(
+def get_user_by_id_with_roles_and_permissions(
     db: Session, user_id: int, *, include_deleted: bool = False
 ) -> UserWithRolesAndPermissionsResponse:
     user = repository.get_user_by_id(

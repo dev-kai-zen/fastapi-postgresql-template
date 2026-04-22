@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.core.deps import require_access_token_payload
+from app.core.deps import require_access_token_payload, require_current_user_id
 from app.modules.users import service
 from app.modules.users.schema import (
     UserCreate,
@@ -58,16 +58,16 @@ def list_users_by_ids(
     return service.list_users_by_ids(db, ids, include_deleted=include_deleted)
 
 
-@router.get("/{user_id}", response_model=UserWithRolesAndPermissionsResponse)
-def get_users_by_id(
+@router.get("/{user_id}", response_model=UserRead)
+def get_user_by_id(
     user_id: int,
     include_deleted: bool = Query(
         default=False,
         description="Allow loading a soft-deleted user by id.",
     ),
     db: Session = Depends(get_db),
-) -> UserWithRolesAndPermissionsResponse:
-    return service.get_users_by_id(db, user_id, include_deleted=include_deleted)
+) -> UserRead:
+    return service.get_user_by_id(db, user_id, include_deleted=include_deleted)
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -85,3 +85,8 @@ def update_user_by_id(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user_by_id(user_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_user_by_id(db, user_id)
+
+
+@router.get("/me", response_model=UserWithRolesAndPermissionsResponse)
+def get_user_by_id_with_roles_and_permissions(db: Session = Depends(get_db), current_user_id: int = Depends(require_current_user_id)) -> UserWithRolesAndPermissionsResponse:
+    return service.get_user_by_id_with_roles_and_permissions(db, current_user_id)

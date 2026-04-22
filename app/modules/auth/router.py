@@ -6,7 +6,10 @@ from app.core.config import get_settings
 from app.core.constants import REFRESH_TOKEN_COOKIE_NAME
 from app.core.db import get_db
 from app.modules.auth import service
-from app.modules.auth.schema import AccessTokenResponse, UserInfoResponse
+from app.modules.auth.schema import AccessTokenResponse, GoogleOAuthCompleteResult
+
+from app.core.deps import require_access_token_payload
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,21 +58,19 @@ async def google_login_post():
 
 
 @router.get("/google/callback")
-async def google_callback(code: str = Query(...)):
+async def google_callback(response: Response, code: str = Query(...)) -> GoogleOAuthCompleteResult:
     result = await service.complete_google_oauth(code)
-    body = AccessTokenResponse(access_token=result.access_token)
-    response = JSONResponse(content=body.model_dump(mode="json"))
-    _set_refresh_token_cookie(response, result.refresh_token)
-    return response
+    _set_refresh_token_cookie(response, result["refresh_token"])
+    return GoogleOAuthCompleteResult(token=AccessTokenResponse(access_token=result["access_token"]), user=result["user"], roles=result["roles"], permissions=result["permissions"])
 
 
 @router.post("/retry-login", response_model=AccessTokenResponse)
 async def retry_login(
     db: Session = Depends(get_db),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
-):
-    access = service.refresh_access_from_cookie(db, refresh_token)
-    return AccessTokenResponse(access_token=access)
+) -> GoogleOAuthCompleteResult:
+    result = service.refresh_access_from_cookie(db, refresh_token)
+    return GoogleOAuthCompleteResult(token=AccessTokenResponse(access_token=result["access_token"]), user=result["user"], roles=result["roles"], permissions=result["permissions"])
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -81,8 +82,3 @@ def logout(
     out = Response(status_code=status.HTTP_204_NO_CONTENT)
     _clear_refresh_cookie(out)
     return out
-
-
-@router.get("/user-info", response_model=UserInfoResponse)
-def user_info():
-    return service.get_user_info()

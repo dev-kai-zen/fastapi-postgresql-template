@@ -6,11 +6,9 @@ import jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.refresh_token.repository import (
-    get_active_by_jti,
-    insert_token,
-    revoke_by_jti,
-)
+from app.core.refresh_token import repository as refresh_token_repository
+
+from app.core.timezone import now_app
 
 
 def _decode_refresh_payload(token: str) -> dict[str, Any]:
@@ -31,7 +29,7 @@ def _decode_refresh_payload(token: str) -> dict[str, Any]:
 def verify_refresh_session(db: Session, token: str) -> dict[str, Any]:
     payload = _decode_refresh_payload(token)
     jti = str(payload["jti"])
-    row = get_active_by_jti(db, jti)
+    row = refresh_token_repository.get_active_by_jti(db, jti)
     if row is None:
         raise jwt.InvalidTokenError("Refresh token revoked or unknown")
     return payload
@@ -44,12 +42,13 @@ def issue_refresh_token(
     expires_delta: timedelta | None = None,
 ) -> str:
     settings = get_settings()
-    now = datetime.now(UTC)
+    now = now_app()
     if expires_delta is None:
         expires_delta = timedelta(days=settings.refresh_token_expire_days)
     expire = now + expires_delta
     jti = str(uuid.uuid4())
-    insert_token(db, jti=jti, user_id=int(subject), expires_at=expire)
+    refresh_token_repository.insert_token(
+        db, jti=jti, user_id=int(subject), expires_at=expire)
     payload: dict[str, Any] = {
         "sub": str(subject),
         "exp": expire,
@@ -69,4 +68,4 @@ def revoke_refresh_token(db: Session, token: str) -> None:
         payload = _decode_refresh_payload(token)
     except jwt.PyJWTError:
         return
-    revoke_by_jti(db, str(payload["jti"]))
+    refresh_token_repository.revoke_by_jti(db, str(payload["jti"]))
