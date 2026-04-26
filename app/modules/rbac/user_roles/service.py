@@ -100,16 +100,23 @@ def list_rbac_user_roles_by_user_ids(
     ]
 
 
+def list_rbac_roles_joined_for_user_id(
+    db: Session, user_id: int
+) -> list[RbacRoleRead]:
+    """Roles for one user via a single user_roles ⨝ role query (no users table hit)."""
+    rows = repository.list_rbac_user_roles_by_user_ids(db, [user_id])
+    roles_list = _roles_by_user_id_ordered(rows).get(user_id, [])
+    return [RbacRoleRead.model_validate(r) for r in roles_list]
+
+
 def get_rbac_user_roles_permissions_by_user_id(
     db: Session, user_id: int
 ) -> RbacUserRolesDetailByUserId:
     users_map = users_client.get_users_by_ids_map(db, [user_id])
     if user_id not in users_map:
         raise HTTPException(status_code=404, detail="User not found")
-    rows = repository.list_rbac_user_roles_by_user_ids(db, [user_id])
-    roles_list = _roles_by_user_id_ordered(rows).get(user_id, [])
-    roles_read = [RbacRoleRead.model_validate(r) for r in roles_list]
-    role_ids = [r.id for r in roles_list]
+    roles_read = list_rbac_roles_joined_for_user_id(db, user_id)
+    role_ids = [r.id for r in roles_read]
     perms = (
         role_permissions_service.list_rbac_role_permissions_by_role_ids(db, role_ids)
         if role_ids

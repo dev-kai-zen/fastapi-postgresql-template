@@ -21,6 +21,11 @@ class RbacClient:
     ) -> list[RbacUserRoleRead]:
         return user_roles_service.list_rbac_user_roles_by_user_id(db, user_id)
 
+    def list_rbac_roles_joined_for_user_id(
+        self, db: Session, user_id: int
+    ) -> list[RbacRoleRead]:
+        return user_roles_service.list_rbac_roles_joined_for_user_id(db, user_id)
+
     def list_rbac_roles_by_ids(
         self, db: Session, ids: list[int]
     ) -> list[RbacRoleRead]:

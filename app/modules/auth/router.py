@@ -7,6 +7,7 @@ from app.core.constants import REFRESH_TOKEN_COOKIE_NAME
 from app.core.db import get_db
 from app.modules.auth import service
 from app.modules.auth.schema import AccessTokenResponse, GoogleOAuthCompleteResult
+from app.dependencies.token_payload_deps import require_access_token_payload
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -60,7 +61,6 @@ async def google_callback(response: Response, code: str = Query(...)) -> GoogleO
     result = await service.complete_google_oauth(code)
     _set_refresh_token_cookie(response, result["refresh_token"])
     return GoogleOAuthCompleteResult(token=AccessTokenResponse(access_token=result["access_token"]), user=result["user"], roles=result["roles"], permissions=result["permissions"])
-
 
 @router.post("/retry-login", response_model=AccessTokenResponse)
 async def retry_login(

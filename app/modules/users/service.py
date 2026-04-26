@@ -27,9 +27,8 @@ _rbac_client = RbacClient()
 def _user_with_roles_and_permissions_for_user(
     db: Session, user: User
 ) -> UserWithRolesAndPermissionsResponse:
-    user_roles = _rbac_client.list_rbac_user_roles_by_user_id(db, user.id)
-    role_ids = list(dict.fromkeys(ur.role_id for ur in user_roles))
-    roles = _rbac_client.list_rbac_roles_by_ids(db, role_ids)
+    roles = _rbac_client.list_rbac_roles_joined_for_user_id(db, user.id)
+    role_ids = [r.id for r in roles]
     permissions_raw = _rbac_client.list_rbac_role_permissions_by_role_ids(
         db, role_ids
     )
