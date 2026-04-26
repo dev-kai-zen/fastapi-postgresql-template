@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-
 import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -8,35 +6,15 @@ from app.core.db import SessionLocal
 from app.core.security import create_access_token
 from app.core.refresh_token import service as refresh_token_service
 from app.modules.auth.oauth_client import GoogleOAuthClient, OAuthClientError
-from app.modules.auth.rbac_client import RbacClient
-from app.modules.auth.schema import GoogleOAuthCompleteResult
 from app.modules.auth.users_client import UsersClient
-from app.modules.users.schema import UserRead
 
 _oauth_client = GoogleOAuthClient()
 _users_client = UsersClient()
-_rbac_client = RbacClient()
 
 
-def _mint_access_token_for_user(db: Session, user_read: UserRead) -> dict:
-    user_roles_permissions = _rbac_client.get_rbac_user_roles_permissions_by_user_id(
-        db, user_read.id
-    )
-    user_claims = user_read.model_dump(mode="json")
-    roles_claims = [role.model_dump(mode="json")
-                    for role in user_roles_permissions.roles]
-    permissions_claims = [
-        permission.model_dump(mode="json")
-        for permission in user_roles_permissions.role_permissions
-    ]
-    access_token = create_access_token(
-        user_claims, roles=roles_claims, permissions=permissions_claims)
-    return {
-        "access_token": access_token,
-        "user": user_claims,
-        "roles": roles_claims,
-        "permissions": permissions_claims,
-    }
+def _mint_access_token_for_user(user_id: int) -> dict:
+    access_token = create_access_token(user_id)
+    return {"access_token": access_token}
 
 
 def get_google_login_redirect_url() -> str:
@@ -54,16 +32,11 @@ async def complete_google_oauth(code: str) -> dict:
     db: Session = SessionLocal()
     try:
         user_read = _users_client.upsert_google_identity(db, raw_profile)
-        access_token_result = _mint_access_token_for_user(db, user_read)
+        access_token_result = _mint_access_token_for_user(user_read.id)
         refresh = refresh_token_service.issue_refresh_token(db, user_read.id)
         return {
             "access_token": access_token_result["access_token"],
             "refresh_token": refresh,
-            "user": user_read.model_dump(mode="json"),
-            "roles": [role.model_dump(mode="json")
-                      for role in access_token_result["roles"]],
-            "permissions": [permission.model_dump(
-                mode="json") for permission in access_token_result["permissions"]],
         }
     finally:
         db.close()
@@ -98,7 +71,7 @@ def refresh_access_token(db: Session, refresh_token: str) -> dict:
                 detail="Invalid refresh token; sign in again",
             ) from exc
         raise
-    return _mint_access_token_for_user(db, user_read)
+    return _mint_access_token_for_user(user_read.id)
 
 
 def refresh_access_from_cookie(db: Session, refresh_token: str | None) -> dict:

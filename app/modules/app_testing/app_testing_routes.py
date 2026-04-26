@@ -36,7 +36,7 @@ def token_check(
     payload: dict = Depends(require_access_token_payload),
 ) -> dict[str, Any]:
     """Requires a valid access JWT (Authorization: Bearer). For manual / UI testing."""
-    return {"valid": True, "user": payload.get("user")}
+    return {"valid": True, "sub": payload.get("sub")}
 
 
 def _mint_app_testing_access_token(admin_code: str) -> dict[str, Any]:
@@ -64,28 +64,9 @@ def _mint_app_testing_access_token(admin_code: str) -> dict[str, Any]:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid admin code",
         )
-    # Synthetic user claim; not a DB row — use only for exercising JWT-protected routes.
-    user_claims: dict[str, Any] = {
-        "id": 0,
-        "google_id": "app-testing-local",
-        "email": "app-testing@local.invalid",
-        "phone_number": None,
-        "first_name": "App",
-        "middle_name": None,
-        "last_name": "Testing",
-        "username": None,
-        "picture": None,
-        "is_active": 1,
-        "last_login_at": None,
-        "created_at": "1970-01-01T00:00:00Z",
-        "updated_at": "1970-01-01T00:00:00Z",
-        "deleted_at": None,
-        "role_id": None,
-    }
+    # Synthetic subject only (not a DB user) — for exercising JWT-protected routes; avoid /users/me.
     expires = timedelta(minutes=max(1, settings.app_testing_token_expire_minutes))
-    access = create_access_token(
-        user_claims, roles=[], permissions=[], expires_delta=expires
-    )
+    access = create_access_token(0, expires_delta=expires)
     return {
         "access_token": access,
         "token_type": "bearer",

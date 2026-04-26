@@ -9,22 +9,19 @@ import jwt
 
 
 def create_access_token(
-    user: dict,
-    roles: list[dict],
-    permissions: list[dict] = [],
+    user_id: int,
+    *,
     extra_claims: dict[str, Any] | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
-    """Return a signed JWT access token. `subject` is stored as the `sub` claim."""
+    """Return a signed JWT: only `sub` (user id) plus exp/iat. Load profile/RBAC via APIs (e.g. GET /users/me)."""
     settings: Settings = get_settings()
     now = datetime.now(UTC)
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
     expire = now + expires_delta
     payload: dict[str, Any] = {
-        "user": user,
-        "roles": roles,
-        "permissions": permissions,
+        "sub": str(user_id),
         "exp": expire,
         "iat": now,
     }

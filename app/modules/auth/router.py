@@ -1,13 +1,14 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Cookie, Depends, Query, Response, status
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.constants import REFRESH_TOKEN_COOKIE_NAME
 from app.core.db import get_db
 from app.modules.auth import service
-from app.modules.auth.schema import AccessTokenResponse, GoogleOAuthCompleteResult
-from app.dependencies.token_payload_deps import require_access_token_payload
+from app.modules.auth.schema import AccessTokenResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -57,18 +58,23 @@ async def google_login_post():
 
 
 @router.get("/google/callback")
-async def google_callback(response: Response, code: str = Query(...)) -> GoogleOAuthCompleteResult:
+async def google_callback(code: str = Query(...)) -> RedirectResponse:
     result = await service.complete_google_oauth(code)
-    _set_refresh_token_cookie(response, result["refresh_token"])
-    return GoogleOAuthCompleteResult(token=AccessTokenResponse(access_token=result["access_token"]), user=result["user"], roles=result["roles"], permissions=result["permissions"])
+    settings = get_settings()
+    token = quote(result["access_token"], safe="")
+    target = f"{settings.frontend_oauth_success_url}#access_token={token}"
+    redirect = RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
+    _set_refresh_token_cookie(redirect, result["refresh_token"])
+    return redirect
+
 
 @router.post("/retry-login", response_model=AccessTokenResponse)
 async def retry_login(
     db: Session = Depends(get_db),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
-) -> GoogleOAuthCompleteResult:
+) -> AccessTokenResponse:
     result = service.refresh_access_from_cookie(db, refresh_token)
-    return GoogleOAuthCompleteResult(token=AccessTokenResponse(access_token=result["access_token"]), user=result["user"], roles=result["roles"], permissions=result["permissions"])
+    return AccessTokenResponse(access_token=result["access_token"])
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

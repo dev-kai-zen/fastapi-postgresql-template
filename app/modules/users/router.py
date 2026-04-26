@@ -58,6 +58,15 @@ def list_users_by_ids(
     return service.list_users_by_ids(db, ids, include_deleted=include_deleted)
 
 
+# Static segment before /{user_id} so "me" is not captured as a path param.
+@router.get("/me", response_model=UserWithRolesAndPermissionsResponse)
+def get_user_by_id_with_roles_and_permissions(
+    db: Session = Depends(get_db),
+    current_user_id: int = Depends(require_current_user_id),
+) -> UserWithRolesAndPermissionsResponse:
+    return service.get_user_by_id_with_roles_and_permissions(db, current_user_id)
+
+
 @router.get("/{user_id}", response_model=UserRead)
 def get_user_by_id(
     user_id: int,
@@ -74,7 +83,6 @@ def get_user_by_id(
 def create_user(create_data: UserCreate, db: Session = Depends(get_db)) -> UserRead:
     return service.create_user(db, create_data)
 
-
 @router.patch("/{user_id}", response_model=UserRead)
 def update_user_by_id(
     user_id: int, update_data: UserUpdate, db: Session = Depends(get_db)
@@ -87,6 +95,4 @@ def delete_user_by_id(user_id: int, db: Session = Depends(get_db)) -> None:
     service.delete_user_by_id(db, user_id)
 
 
-@router.get("/me", response_model=UserWithRolesAndPermissionsResponse)
-def get_user_by_id_with_roles_and_permissions(db: Session = Depends(get_db), current_user_id: int = Depends(require_current_user_id)) -> UserWithRolesAndPermissionsResponse:
-    return service.get_user_by_id_with_roles_and_permissions(db, current_user_id)
+
