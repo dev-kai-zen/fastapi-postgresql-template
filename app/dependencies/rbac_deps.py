@@ -4,10 +4,8 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.dependencies.rbac_client import RbacClient
 from app.dependencies.token_payload_deps import require_current_user_id
-
-_rbac_client = RbacClient()
+from app.modules.rbac import rbac_guards
 
 
 def require_permission(
@@ -19,7 +17,7 @@ def require_permission(
         user_id: int = Depends(require_current_user_id),
         db: Session = Depends(get_db),
     ) -> None:
-        _rbac_client.assert_permissions(user_id, db, list(codes), mode=mode)
+        rbac_guards.permission_guard(user_id, db, list(codes), mode=mode)
 
     return _check
 
@@ -33,6 +31,6 @@ def require_role(
         user_id: int = Depends(require_current_user_id),
         db: Session = Depends(get_db),
     ) -> None:
-        _rbac_client.assert_roles(user_id, db, list(role_names), mode=mode)
+        rbac_guards.role_guard(user_id, db, list(role_names), mode=mode)
 
     return _check
