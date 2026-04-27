@@ -45,4 +45,5 @@ class RbacRolePermissionReadJoined(BaseModel):
 class RbacRolePermissionUpdate(BaseModel):
     """Replace the role’s permission set with this list (order preserved; duplicates dropped)."""
 
-    permission_ids: list[Annotated[int, Field(ge=1)]] = Field(default_factory=list)
+    permission_ids: list[Annotated[int, Field(ge=1)]] = Field(
+        default_factory=list)
