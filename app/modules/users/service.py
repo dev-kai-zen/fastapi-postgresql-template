@@ -19,9 +19,12 @@ from app.modules.users.schema import (
     UserWithRolesAndPermissionsResponse,
     UserWithRolesResponse,
 )
+from app.modules.users.audit_log_client import AuditLogClient
 from app.modules.users.rbac_client import RbacClient
+from app.modules.audit_logs.schema import AuditLogCreate
 
 _rbac_client = RbacClient()
+_audit_log_client = AuditLogClient()
 
 
 def _user_with_roles_and_permissions_for_user(
@@ -42,6 +45,51 @@ def _user_with_roles_and_permissions_for_user(
         user=UserRead.model_validate(user),
         roles=roles,
         permissions=permissions,
+    )
+
+
+def _record_user_update_audit(
+    db: Session,
+    *,
+    actor_user_id: int,
+    target_user_id: int,
+    before: UserRead,
+    after: UserRead,
+    password_changed: bool,
+) -> None:
+    """Append an audit row for a successful user update (no secrets in payloads)."""
+    b = before.model_dump(mode="json")
+    a = after.model_dump(mode="json")
+    changed_fields: list[str] = [k for k in a if b.get(k) != a.get(k)]
+    if password_changed:
+        changed_fields.append("password")
+    if not changed_fields:
+        return
+
+    old_values: dict = {k: b[k] for k in changed_fields if k != "password"}
+    new_values: dict = {k: a[k] for k in changed_fields if k != "password"}
+    if password_changed:
+        old_values["password"] = "[redacted]"
+        new_values["password"] = "[redacted]"
+
+    actor = repository.get_user_by_id(db, actor_user_id)
+    actor_email = actor.email if actor is not None else None
+
+    _audit_log_client.create_audit_log(
+        db,
+        AuditLogCreate(
+            user_id=actor_user_id,
+            actor_type="user",
+            email=actor_email,
+            action="update",
+            resource_type="user",
+            resource_id=str(target_user_id),
+            service_name="users",
+            old_values=old_values,
+            new_values=new_values,
+            changed_fields=sorted(changed_fields),
+            success=True,
+        ),
     )
 
 
@@ -191,13 +239,19 @@ def create_user(db: Session, create_data: UserCreate) -> UserRead:
 
 
 def update_user_by_id(
-    db: Session, user_id: int, update_data: UserUpdate
+    db: Session,
+    user_id: int,
+    update_data: UserUpdate,
+    *,
+    actor_user_id: int | None = None,
 ) -> UserRead:
     persisted_user = repository.get_user_by_id(db, user_id)
     if persisted_user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
+    before_read = UserRead.model_validate(persisted_user)
+    password_changed = update_data.password is not None
     pwd_hash = (
         hash_password(update_data.password)
         if update_data.password is not None
@@ -216,7 +270,17 @@ def update_user_by_id(
                 "username"
             ),
         ) from None
-    return UserRead.model_validate(persisted_user)
+    after_read = UserRead.model_validate(persisted_user)
+    if actor_user_id is not None:
+        _record_user_update_audit(
+            db,
+            actor_user_id=actor_user_id,
+            target_user_id=user_id,
+            before=before_read,
+            after=after_read,
+            password_changed=password_changed,
+        )
+    return after_read
 
 
 def delete_user_by_id(db: Session, user_id: int) -> None:

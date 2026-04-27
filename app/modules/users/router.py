@@ -103,8 +103,11 @@ def update_user_by_id(
     update_data: UserUpdate,
     _: None = Depends(require_permission(USER_UPDATE)),
     db: Session = Depends(get_db),
+    actor_user_id: int = Depends(require_current_user_id),
 ) -> UserRead:
-    return service.update_user_by_id(db, user_id, update_data)
+    return service.update_user_by_id(
+        db, user_id, update_data, actor_user_id=actor_user_id
+    )
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
