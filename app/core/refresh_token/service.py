@@ -69,3 +69,5 @@ def revoke_refresh_token(db: Session, token: str) -> None:
     except jwt.PyJWTError:
         return
     refresh_token_repository.revoke_by_jti(db, str(payload["jti"]))
+
+

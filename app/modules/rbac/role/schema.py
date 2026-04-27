@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RbacRoleBase(BaseModel):
@@ -13,6 +13,8 @@ class RbacRoleCreate(RbacRoleBase):
 
 
 class RbacRoleRead(RbacRoleBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
     updated_at: datetime

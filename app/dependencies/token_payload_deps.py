@@ -15,7 +15,6 @@ _bearer = HTTPBearer(auto_error=False)
 
 def require_access_token_payload(
     response: Response,
-    db: Session = Depends(get_db),
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
     refresh_token: str | None = Cookie(None, alias=REFRESH_TOKEN_COOKIE_NAME),
 ) -> dict:

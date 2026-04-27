@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.db import get_db
 from app.dependencies.token_payload_deps import require_access_token_payload
 from app.core.security import create_access_token
+from app.dependencies.rbac_deps import require_permission
 
 router = APIRouter()
 
@@ -65,7 +66,8 @@ def _mint_app_testing_access_token(admin_code: str) -> dict[str, Any]:
             detail="Invalid admin code",
         )
     # Synthetic subject only (not a DB user) — for exercising JWT-protected routes; avoid /users/me.
-    expires = timedelta(minutes=max(1, settings.app_testing_token_expire_minutes))
+    expires = timedelta(minutes=max(
+        1, settings.app_testing_token_expire_minutes))
     access = create_access_token(0, expires_delta=expires)
     return {
         "access_token": access,
@@ -84,3 +86,10 @@ def generate_token(
 ) -> dict[str, Any]:
     """Return a temporary access JWT for manual testing (`Authorization: Bearer ...`)."""
     return _mint_app_testing_access_token(admin_code)
+
+
+@router.get("/app-testing/permissions-check")
+async def permissions_check(
+    _: None = Depends(require_permission("user.read")),
+) -> dict[str, Any]:
+    return {"message": "Permissions check passed"}
