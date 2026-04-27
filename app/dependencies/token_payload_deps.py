@@ -46,7 +46,7 @@ def require_access_token_payload(
 def require_current_user_id(
     payload: dict = Depends(require_access_token_payload),
 ) -> int:
-    """Numeric `users.id` from the access token `sub` claim."""
+    """Numeric `users.id` from  the access token `sub` claim."""
     sub = payload.get("sub")
     try:
         uid = int(sub) if sub is not None else -1
