@@ -94,7 +94,8 @@ def list_rbac_user_roles_by_user_ids(
     return [
         RbacUserRolesForUserId(
             user_id=uid,
-            roles=[RbacRoleRead.model_validate(r) for r in by_user.get(uid, [])],
+            roles=[RbacRoleRead.model_validate(r)
+                   for r in by_user.get(uid, [])],
         )
         for uid in user_ids
     ]
@@ -117,8 +118,10 @@ def get_rbac_user_roles_permissions_by_user_id(
         raise HTTPException(status_code=404, detail="User not found")
     roles_read = list_rbac_roles_joined_for_user_id(db, user_id)
     role_ids = [r.id for r in roles_read]
+
     perms = (
-        role_permissions_service.list_rbac_role_permissions_by_role_ids(db, role_ids)
+        role_permissions_service.list_rbac_role_permissions_by_role_ids(
+            db, role_ids)
         if role_ids
         else []
     )

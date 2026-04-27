@@ -10,3 +10,5 @@ USER_DELETE = "user.delete"
 
 RBAC_READ = "rbac.read"
 RBAC_MANAGE = "rbac.manage"
+
+AUDIT_LOG_READ = "audit_log.read"
