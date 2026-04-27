@@ -1,4 +1,9 @@
-"""RBAC entrypoint for the HTTP dependency layer. Wraps `rbac_guards` for route protection."""
+"""HTTP-layer adapter: maps RBAC checks to `rbac_guards` only.
+
+Guards intentionally live next to RBAC (they load roles/permissions via `user_roles` service and
+raise `HTTPException`). Keep route-level rules here and in `rbac_deps` so services stay free of
+authorization policy duplication.
+"""
 
 from sqlalchemy.orm import Session
 
@@ -6,7 +11,7 @@ from app.modules.rbac import rbac_guards
 
 
 class RbacClient:
-    async def assert_permissions(
+    def assert_permissions(
         self,
         user_id: int,
         db: Session,
@@ -14,9 +19,7 @@ class RbacClient:
         *,
         mode: str = "any",
     ) -> None:
-        await rbac_guards.permission_guard(
-            user_id, db, permissions, mode=mode
-        )
+        rbac_guards.permission_guard(user_id, db, permissions, mode=mode)
 
     def assert_roles(
         self,
@@ -27,4 +30,3 @@ class RbacClient:
         mode: str = "any",
     ) -> None:
         rbac_guards.role_guard(user_id, db, roles, mode=mode)
-

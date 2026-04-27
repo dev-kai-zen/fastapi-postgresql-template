@@ -1,4 +1,4 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -12,24 +12,24 @@ _rbac_client = RbacClient()
 
 def require_permission(
     *codes: str, mode: str = "any"
-) -> Callable[..., Awaitable[None]]:
+) -> Callable[..., None]:
     """Depends factory: 403 unless JWT user has the given permission code(s)."""
 
-    async def _check(
+    def _check(
         user_id: int = Depends(require_current_user_id),
         db: Session = Depends(get_db),
     ) -> None:
-        await _rbac_client.assert_permissions(user_id, db, list(codes), mode=mode)
+        _rbac_client.assert_permissions(user_id, db, list(codes), mode=mode)
 
     return _check
 
 
 def require_role(
     *role_names: str, mode: str = "any"
-) -> Callable[..., Awaitable[None]]:
+) -> Callable[..., None]:
     """Depends factory: 403 unless JWT user has the given role name(s)."""
 
-    async def _check(
+    def _check(
         user_id: int = Depends(require_current_user_id),
         db: Session = Depends(get_db),
     ) -> None:

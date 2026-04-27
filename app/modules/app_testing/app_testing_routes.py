@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.db import get_db
-from app.dependencies.token_payload_deps import require_access_token_payload
+from app.core.rbac_codes import USER_READ
 from app.core.security import create_access_token
 from app.dependencies.rbac_deps import require_permission
+from app.dependencies.token_payload_deps import require_access_token_payload
 
 router = APIRouter()
 
@@ -89,7 +90,7 @@ def generate_token(
 
 
 @router.get("/app-testing/permissions-check")
-async def permissions_check(
-    _: None = Depends(require_permission("user.read")),
+def permissions_check(
+    _: None = Depends(require_permission(USER_READ)),
 ) -> dict[str, Any]:
     return {"message": "Permissions check passed"}

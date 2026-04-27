@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.core.rbac_codes import RBAC_MANAGE, RBAC_READ
+from app.dependencies.rbac_deps import require_permission
 from app.dependencies.token_payload_deps import require_access_token_payload
 from app.modules.rbac.permissions import service
 from app.modules.rbac.permissions.schema import (
@@ -21,6 +23,7 @@ router = APIRouter(
 def list_rbac_permissions(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=100),
+    _: None = Depends(require_permission(RBAC_READ)),
     db: Session = Depends(get_db),
 ) -> list[RbacPermissionRead]:
     return service.list_rbac_permissions(db, skip=skip, limit=limit)
@@ -28,21 +31,27 @@ def list_rbac_permissions(
 
 @router.get("/get-by-ids", response_model=list[RbacPermissionRead])
 def get_rbac_permissions_by_ids(
-    ids: list[int], db: Session = Depends(get_db)
+    ids: list[int],
+    _: None = Depends(require_permission(RBAC_READ)),
+    db: Session = Depends(get_db),
 ) -> list[RbacPermissionRead]:
     return service.get_rbac_permissions_by_ids(db, ids)
 
 
 @router.get("/{permission_id}", response_model=RbacPermissionRead)
 def get_rbac_permission_by_id(
-    permission_id: int, db: Session = Depends(get_db)
+    permission_id: int,
+    _: None = Depends(require_permission(RBAC_READ)),
+    db: Session = Depends(get_db),
 ) -> RbacPermissionRead:
     return service.get_rbac_permission_by_id(db, permission_id)
 
 
 @router.post("", response_model=RbacPermissionRead, status_code=status.HTTP_201_CREATED)
 def create_rbac_permission(
-    create_data: RbacPermissionCreate, db: Session = Depends(get_db)
+    create_data: RbacPermissionCreate,
+    _: None = Depends(require_permission(RBAC_MANAGE)),
+    db: Session = Depends(get_db),
 ) -> RbacPermissionRead:
     return service.create_rbac_permission(db, create_data)
 
@@ -51,6 +60,7 @@ def create_rbac_permission(
 def update_rbac_permission(
     permission_id: int,
     update_data: RbacPermissionUpdate,
+    _: None = Depends(require_permission(RBAC_MANAGE)),
     db: Session = Depends(get_db),
 ) -> RbacPermissionRead:
     return service.update_rbac_permission(db, permission_id, update_data)
@@ -58,6 +68,8 @@ def update_rbac_permission(
 
 @router.delete("/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_rbac_permission(
-    permission_id: int, db: Session = Depends(get_db)
+    permission_id: int,
+    _: None = Depends(require_permission(RBAC_MANAGE)),
+    db: Session = Depends(get_db),
 ) -> None:
     service.delete_rbac_permission(db, permission_id)
