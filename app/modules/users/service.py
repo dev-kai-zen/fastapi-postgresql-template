@@ -57,6 +57,7 @@ def _record_user_update_audit(
     after: UserRead,
     password_changed: bool,
 ) -> None:
+    print("RECORDING AUDIT LOG FOR USER UPDATE", flush=True)
     """Append an audit row for a successful user update (no secrets in payloads)."""
     b = before.model_dump(mode="json")
     a = after.model_dump(mode="json")

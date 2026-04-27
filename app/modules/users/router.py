@@ -97,6 +97,7 @@ def create_user(
 ) -> UserRead:
     return service.create_user(db, create_data)
 
+
 @router.patch("/{user_id}", response_model=UserRead)
 def update_user_by_id(
     user_id: int,
@@ -105,6 +106,7 @@ def update_user_by_id(
     db: Session = Depends(get_db),
     actor_user_id: int = Depends(require_current_user_id),
 ) -> UserRead:
+    print(f"ACTOR USER ID: {actor_user_id}", flush=True)
     return service.update_user_by_id(
         db, user_id, update_data, actor_user_id=actor_user_id
     )
@@ -117,6 +119,3 @@ def delete_user_by_id(
     db: Session = Depends(get_db),
 ) -> None:
     service.delete_user_by_id(db, user_id)
-
-
-
